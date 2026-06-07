@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: regeneration
+  generateName: regeneration-
+spec:
+  entrypoint: regenerate-file
+  templates:
+  - name: regenerate-file
+    inputs:
+      parameters:
+        - name: file_id
+          value: placeholder
+        - name: segment_no
+          value: placeholder
+    container:
+      image: decentorage/regeneration-node:3.1
+      command: [python]
+      # args: ["test.py","--msg","{{inputs.parameters.file_id}}"] 
+      args: ["regenerate.py","--id","{{inputs.parameters.file_id}}", "--seg","{{inputs.parameters.segment_no}}"]
+      env:
+      - name: MONGODB_DEV_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-dev-uri
+            key: MONGODB_DEV_URI
+      - name: MONGODB_DEV_NAME
+        value: test
+      - name: SHARD_ID_KEY
+        valueFrom:
+          secretKeyRef:
+            name: shard-id-key
+            key: SHARD_ID_KEY

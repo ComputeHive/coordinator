@@ -1,0 +1,24 @@
+[project]
+name = "coordinator"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "omarhashem", email = "omarsayed4736@gmail.com"}
+]
+requires-python = "^3.11"
+dependencies = [
+    "bcrypt>=4.1,<5",
+    "click>=8.1,<9",
+    "cryptography>=42.0,<43",
+    "Flask>=3.0,<4",
+    "PyJWT>=2.8,<3",
+    "pymongo>=4.6,<5",
+    "PyYAML>=6.0,<7",
+    "web3>=6.15,<7",
+    "argo-workflows>=6.6,<7",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
