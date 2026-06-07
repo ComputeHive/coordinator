@@ -9,6 +9,7 @@ from flask import Flask
 import config as cfg
 from api.blueprints.user_blueprint import create_user_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
+from api.swagger import register_swagger
 from api.middleware.auth import make_auth_decorator, register_error_handlers
 from core.services.auth_service import AuthService
 from core.services.user_service import UserService
@@ -130,5 +131,7 @@ def create_app(env: str = "dev") -> Flask:
         )
         response.headers["Access-Control-Expose-Headers"] = "DAV, content-length, Allow"
         return response
+
+    register_swagger(app)
 
     return app
