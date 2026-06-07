@@ -1,15 +1,3 @@
-"""
-Flask middleware.
-
-auth_required(node_type)  — decorator that extracts the JWT, validates it,
-                            checks the node exists, and injects `username`
-                            into the view function.
-
-register_error_handlers() — maps domain exceptions to HTTP responses so
-                            that controllers never call abort() or catch
-                            exceptions themselves.
-"""
-
 from __future__ import annotations
 
 from functools import wraps

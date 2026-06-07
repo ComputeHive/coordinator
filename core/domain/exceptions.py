@@ -1,12 +1,3 @@
-"""
-Domain exceptions.
-
-Raised by services and repositories; translated to HTTP responses at the
-API boundary (see api/middleware/error_handlers.py).  Nothing below the API
-layer should know about Flask or HTTP status codes.
-"""
-
-
 class CeraError(Exception):
     """Base class for all application errors."""
 

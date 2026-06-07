@@ -1,10 +1,3 @@
-"""
-Repository interfaces.
-
-Services depend on these abstractions, not on MongoDB directly.
-Concrete implementations live in infrastructure/database/.
-"""
-
 from __future__ import annotations
 
 import abc

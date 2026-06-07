@@ -1,9 +1,3 @@
-"""
-MongoDB concrete implementations of the repository interfaces.
-
-These are the only files that know about pymongo or BSON.
-"""
-
 from __future__ import annotations
 
 from typing import List, Optional

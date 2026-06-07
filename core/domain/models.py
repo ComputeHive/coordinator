@@ -1,11 +1,3 @@
-"""
-Domain models for Cera.
-
-These frozen dataclasses are the canonical data shapes inside the application.
-Nothing outside core/ should reach into MongoDB documents or raw dicts —
-all data is translated to/from these models at the repository boundary.
-"""
-
 from __future__ import annotations
 
 import datetime

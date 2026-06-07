@@ -1,10 +1,3 @@
-"""
-Storage-node service.
-
-Handles all storage-node business logic: registration, heartbeat tracking,
-availability calculation, random audits, termination, and withdrawal.
-"""
-
 from __future__ import annotations
 
 import datetime

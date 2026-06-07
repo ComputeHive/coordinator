@@ -1,10 +1,3 @@
-"""
-Storage network client.
-
-Wraps all TCP socket communication with storage nodes. The rest of the
-application has zero knowledge of sockets.
-"""
-
 from __future__ import annotations
 
 import json

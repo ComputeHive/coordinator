@@ -1,17 +1,3 @@
-"""
-Authentication service.
-
-Responsibilities:
-- Hash / verify passwords with bcrypt.
-- Issue and validate JWT tokens.
-
-The old code stored the raw password inside the JWT payload, which is a
-security flaw: anyone who can read the token can extract the password and
-re-use it to generate new tokens indefinitely.  The new implementation puts
-only the username in the payload; identity is re-validated against the DB on
-every authenticated request.
-"""
-
 from __future__ import annotations
 
 import datetime

@@ -1,12 +1,3 @@
-"""
-User-node service.
-
-All business logic for user-node operations.  No Flask, no MongoDB, no
-socket I/O — those details live in the infrastructure layer.  The service
-receives abstractions (repositories, blockchain client, network client) via
-constructor injection.
-"""
-
 from __future__ import annotations
 
 import json

@@ -1,10 +1,3 @@
-"""
-Argo Workflows regeneration client.
-
-Triggers a shard-regeneration workflow for a given file segment.
-The file_repo dependency replaces the old `app.database` global.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,7 +16,7 @@ from core.repositories import IFileRepository
 
 logger = logging.getLogger(__name__)
 
-_WORKFLOW_MANIFEST = Path(__file__).parent.parent.parent / "regeneration-workflow.yaml"
+# _WORKFLOW_MANIFEST = Path(__file__).parent.parent.parent / "regeneration-workflow.yaml"
 
 
 class RegenerationClient:
