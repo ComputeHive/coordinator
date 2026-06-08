@@ -6,7 +6,7 @@ from bson.objectid import ObjectId
 from pymongo.database import Database
 
 from core.domain.exceptions import DatabaseError
-from core.domain.models import File, StorageNode, UserNode, StorageContract
+from core.domain.models import File, StorageContract, StorageNode, UserNode
 from core.repositories import (
     IFileRepository,
     IStorageRepository,
@@ -14,10 +14,10 @@ from core.repositories import (
     IUserRepository,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _str_to_oid(id_str: str) -> ObjectId:
     try:
@@ -29,6 +29,7 @@ def _str_to_oid(id_str: str) -> ObjectId:
 # ---------------------------------------------------------------------------
 # User repository
 # ---------------------------------------------------------------------------
+
 
 class MongoUserRepository(IUserRepository):
     def __init__(self, db: Database) -> None:
@@ -47,24 +48,29 @@ class MongoUserRepository(IUserRepository):
         )
 
     def create(self, username: str, password_hash: str) -> None:
-        self._col.insert_one({
-            "username": username,
-            "password": password_hash,
-            "seeds": 0,
-            "pending_contract": False,
-            "pending_contract_paid": False,
-        })
+        self._col.insert_one(
+            {
+                "username": username,
+                "password": password_hash,
+                "seeds": 0,
+                "pending_contract": False,
+                "pending_contract_paid": False,
+            }
+        )
 
     def update(self, username: str, **fields) -> None:
         self._col.update_one({"username": username}, {"$set": fields})
 
     def increment_seeds(self, username: str, amount: int = 1) -> None:
-        self._col.update_one({"username": username}, {"$inc": {"seeds": amount}})
+        self._col.update_one(
+            {"username": username}, {"$inc": {"seeds": amount}}
+        )
 
 
 # ---------------------------------------------------------------------------
 # Storage repository
 # ---------------------------------------------------------------------------
+
 
 class MongoStorageRepository(IStorageRepository):
     def __init__(self, db: Database) -> None:
@@ -75,32 +81,44 @@ class MongoStorageRepository(IStorageRepository):
         return self._from_doc(doc) if doc else None
 
     def find_available(self, min_space: int) -> List[StorageNode]:
-        cursor = self._col.find({
-            "available_space": {"$gt": min_space},
-            "last_heartbeat": {"$ne": -1},
-            "is_terminated": False,
-        })
+        cursor = self._col.find(
+            {
+                "available_space": {"$gt": min_space},
+                "last_heartbeat": {"$ne": -1},
+                "is_terminated": False,
+            }
+        )
         return [self._from_doc(d) for d in cursor]
 
-    def create(self, username: str, password_hash: str, wallet_address: str, available_space: int) -> None:
-        self._col.insert_one({
-            "username": username,
-            "password": password_hash,
-            "wallet_address": wallet_address,
-            "available_space": available_space,
-            "heartbeats": 0,
-            "last_heartbeat": -1,
-            "ip_address": "155.155.155.155",
-            "port": "50000",
-            "is_terminated": False,
-            "active_contracts": [],
-        })
+    def create(
+        self,
+        username: str,
+        password_hash: str,
+        wallet_address: str,
+        available_space: int,
+    ) -> None:
+        self._col.insert_one(
+            {
+                "username": username,
+                "password": password_hash,
+                "wallet_address": wallet_address,
+                "available_space": available_space,
+                "heartbeats": 0,
+                "last_heartbeat": -1,
+                "ip_address": "155.155.155.155",
+                "port": "50000",
+                "is_terminated": False,
+                "active_contracts": [],
+            }
+        )
 
     def update(self, username: str, **fields) -> None:
         self._col.update_one({"username": username}, {"$set": fields})
 
     def push_active_contract(self, username: str, contract: dict) -> None:
-        self._col.update_one({"username": username}, {"$push": {"active_contracts": contract}})
+        self._col.update_one(
+            {"username": username}, {"$push": {"active_contracts": contract}}
+        )
 
     def pull_active_contract(self, username: str, shard_id: str) -> None:
         self._col.update_one(
@@ -138,6 +156,7 @@ class MongoStorageRepository(IStorageRepository):
 # File repository
 # ---------------------------------------------------------------------------
 
+
 class MongoFileRepository(IFileRepository):
     def __init__(self, db: Database) -> None:
         self._col = db["files"]
@@ -147,24 +166,38 @@ class MongoFileRepository(IFileRepository):
         return self._from_doc(doc) if doc else None
 
     def find_pending(self, username: str) -> Optional[File]:
-        doc = self._col.find_one({"username": username, "done_uploading": False})
+        doc = self._col.find_one(
+            {"username": username, "done_uploading": False}
+        )
         return self._from_doc(doc) if doc else None
 
     def find_active(self, username: str) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"username": username, "done_uploading": True})]
+        return [
+            self._from_doc(d)
+            for d in self._col.find(
+                {"username": username, "done_uploading": True}
+            )
+        ]
 
     def find_all_uploaded(self) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"done_uploading": True})]
+        return [
+            self._from_doc(d) for d in self._col.find({"done_uploading": True})
+        ]
 
     def find_by_contract_addresses(self, addresses: List[str]) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"contract": {"$in": addresses}})]
+        return [
+            self._from_doc(d)
+            for d in self._col.find({"contract": {"$in": addresses}})
+        ]
 
     def create(self, file: dict) -> str:
         result = self._col.insert_one(file)
         return str(result.inserted_id)
 
     def update_segments(self, file_id: str, segments: list) -> None:
-        self._col.update_one({"_id": _str_to_oid(file_id)}, {"$set": {"segments": segments}})
+        self._col.update_one(
+            {"_id": _str_to_oid(file_id)}, {"$set": {"segments": segments}}
+        )
 
     def mark_paid(self, username: str) -> None:
         self._col.update_one(
@@ -178,7 +211,9 @@ class MongoFileRepository(IFileRepository):
             {"$set": {"done_uploading": True}},
         )
 
-    def update_shard(self, file_id: str, segment_no: int, shard_no: int, **fields) -> None:
+    def update_shard(
+        self, file_id: str, segment_no: int, shard_no: int, **fields
+    ) -> None:
         set_doc = {
             f"segments.{segment_no}.shards.{shard_no}.{k}": v
             for k, v in fields.items()
@@ -212,12 +247,25 @@ class MongoFileRepository(IFileRepository):
 # Transaction repository
 # ---------------------------------------------------------------------------
 
+
 class MongoTransactionRepository(ITransactionRepository):
     def __init__(self, db: Database) -> None:
         self._col = db["transactions"]
 
     def exists(self, transaction_hash: str) -> bool:
-        return self._col.find_one({"transaction": transaction_hash}) is not None
+        return (
+            self._col.find_one({"transaction": transaction_hash}) is not None
+        )
 
     def record(self, transaction_hash: str) -> None:
         self._col.insert_one({"transaction": transaction_hash})
+
+
+# ---------------------------------------------------------------------------
+# Compute Node repository
+# ---------------------------------------------------------------------------
+
+
+class MongoComputeNodeRepository:
+    def __init__(self, db: Database):
+        pass

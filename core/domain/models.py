@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
+from core.domain.enums import ComputeStatusEnum, TaskTypeEnum
 
 # ---------------------------------------------------------------------------
 # Shard / Segment
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Shard:
-    shard_id: str               # Fernet-encrypted opaque token
+    shard_id: str  # Fernet-encrypted opaque token
     shard_node_username: str
     done_uploading: bool
     shard_lost: bool
@@ -25,9 +27,9 @@ class Shard:
 
 @dataclass(frozen=True)
 class Segment:
-    k: int                       # Minimum shards needed for reconstruction
-    m: int                       # Total shards in segment
-    shard_size: int              # Bytes per shard
+    k: int  # Minimum shards needed for reconstruction
+    m: int  # Total shards in segment
+    shard_size: int  # Bytes per shard
     regeneration_count: int
     shards: List[Shard] = field(default_factory=list)
 
@@ -36,16 +38,17 @@ class Segment:
 # File
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class File:
-    id: str                      # MongoDB ObjectId as string
+    id: str  # MongoDB ObjectId as string
     username: str
     filename: str
     file_size: int
     download_count: int
     duration_in_months: int
     contract_address: str
-    price: int                   # Wei
+    price: int  # Wei
     done_uploading: bool
     paid: bool
     segments: List[Segment] = field(default_factory=list)
@@ -54,6 +57,7 @@ class File:
 # ---------------------------------------------------------------------------
 # User node
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class UserNode:
@@ -67,6 +71,7 @@ class UserNode:
 # ---------------------------------------------------------------------------
 # Storage node
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class StorageContract:
@@ -84,7 +89,7 @@ class StorageNode:
     wallet_address: str
     available_space: int
     heartbeats: int
-    last_heartbeat: object       # -1 (never), -2 (transition), or datetime
+    last_heartbeat: object  # -1 (never), -2 (transition), or datetime
     ip_address: str
     port: str
     is_terminated: bool
@@ -99,15 +104,81 @@ ETHER_IN_USD = 10_000
 STORAGE_PRICE_PER_TERA_USD = 3
 DOWNLOAD_PRICE_PER_TERA_USD = 7
 KB_PER_TERA = 1_073_741_824
-WEI_PER_ETHER = 10 ** 18
+WEI_PER_ETHER = 10**18
 
 
-def calculate_price(download_count: int, duration_in_months: int, file_size_kb: int) -> int:
+def calculate_price(
+    download_count: int, duration_in_months: int, file_size_kb: int
+) -> int:
     """Return storage + download price in Wei."""
     storage_per_kb = STORAGE_PRICE_PER_TERA_USD / (ETHER_IN_USD * KB_PER_TERA)
-    download_per_kb = DOWNLOAD_PRICE_PER_TERA_USD / (ETHER_IN_USD * KB_PER_TERA)
+    download_per_kb = DOWNLOAD_PRICE_PER_TERA_USD / (
+        ETHER_IN_USD * KB_PER_TERA
+    )
     price_ether = (
         storage_per_kb * file_size_kb * duration_in_months
         + download_per_kb * file_size_kb * download_count
     )
     return int(price_ether * WEI_PER_ETHER)
+
+
+# ---------------------------------------------------------------------------
+# Compute Node
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ComputeHeartbeat:
+    node_id: str
+    cpu_load: int
+    available_ram_mb: int
+    available_disk_mb: int
+    total_cpu_cores: int
+    total_ram_mb: int
+    total_disk_mb: int
+    assigned_tasks: List[TaskSnapShot]
+
+
+@dataclass(frozen=True)
+class ComputeNode(ComputeHeartbeat):
+    node_id: str  # mongodb ObjectId
+    username: str
+    password: str
+    wallet_address: str
+    ip_address: str
+    last_heartbeat: datetime.datetime
+    cpu_model: str
+    created_at: datetime.datetime
+
+
+@dataclass(frozen=True)
+class TaskContract:  # TODO: WIP
+    pass
+
+
+@dataclass(frozen=True)
+class WorkflowContract:  # TODO: WIP
+    pass
+
+
+@dataclass(frozen=True)
+class TaskSnapShot:
+    task_id: str  # mongodb ObjectId
+    task_type: TaskTypeEnum
+    task_status: ComputeStatusEnum
+
+
+@dataclass(frozen=True)
+class ComputeTask(TaskSnapShot):
+    requester_id: str
+    task_link: str
+    task_contract: TaskContract
+
+
+@dataclass(frozen=True)
+class ComputeWorkflow:
+    requester_id: str
+    workflow_id: str
+    tasks_id: List[str]
+    workflow_status: ComputeStatusEnum
+    workflow_contract: WorkflowContract
