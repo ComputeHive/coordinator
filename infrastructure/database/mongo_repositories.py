@@ -386,7 +386,7 @@ class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
         }
         workflow = ComputeWorkflow(**workflow_dict)
         self._col.insert_one(
-            MongoComputeWorkflowRepository.computetask_to_doc(workflow)
+            MongoComputeWorkflowRepository.computeworkflow_to_doc(workflow)
         )
 
     def update(self, workflow_id: str, **fields) -> None:
@@ -406,7 +406,7 @@ class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
         return ComputeWorkflow(**document)
 
     @staticmethod
-    def computetask_to_doc(compute_workflow: ComputeWorkflow) -> dict:
+    def computeworkflow_to_doc(compute_workflow: ComputeWorkflow) -> dict:
         document = dataclasses.asdict(compute_workflow)
         document["_id"] = document.pop("workflow_id")
         return document
