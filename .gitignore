@@ -135,3 +135,4 @@ set_env.cmd
 set_env.bash
 decent/
 output
+.vscode/

@@ -128,6 +128,18 @@ def calculate_price(
 
 
 @dataclass(frozen=True)
+class ComputeNodeCreateRequest:
+    username: str
+    password: str
+    wallet_address: str
+    ip_address: str
+    cpu_model: str
+    total_cpu_cores: int
+    total_ram_mb: int
+    total_disk_mb: int
+
+
+@dataclass(frozen=True)
 class ComputeHeartbeat:
     node_id: str
     cpu_load: int
@@ -141,14 +153,14 @@ class ComputeHeartbeat:
 
 @dataclass(frozen=True)
 class ComputeNode(ComputeHeartbeat):
-    node_id: str  # mongodb ObjectId
     username: str
     password: str
     wallet_address: str
     ip_address: str
-    last_heartbeat: datetime.datetime
     cpu_model: str
     created_at: datetime.datetime
+    last_heartbeat: datetime.datetime
+    is_active: bool
 
 
 @dataclass(frozen=True)
@@ -159,6 +171,12 @@ class TaskContract:  # TODO: WIP
 @dataclass(frozen=True)
 class WorkflowContract:  # TODO: WIP
     pass
+
+
+@dataclass(frozen=True)
+class TaskCreateRequest:
+    task_link: str
+    task_type: TaskTypeEnum
 
 
 @dataclass(frozen=True)
@@ -173,6 +191,7 @@ class ComputeTask(TaskSnapShot):
     requester_id: str
     task_link: str
     task_contract: TaskContract
+    task_output_link: str
 
 
 @dataclass(frozen=True)
@@ -182,3 +201,9 @@ class ComputeWorkflow:
     tasks_id: List[str]
     workflow_status: ComputeStatusEnum
     workflow_contract: WorkflowContract
+
+
+@dataclass(frozen=True)
+class WorkflowCreateRequest:
+    task_links: List[str]
+    task_types: List[TaskTypeEnum]

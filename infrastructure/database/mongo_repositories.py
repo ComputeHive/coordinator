@@ -1,13 +1,32 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime
 from typing import List, Optional
+from uuid import uuid4
 
 from bson.objectid import ObjectId
 from pymongo.database import Database
 
+from core.domain.enums import ComputeStatusEnum
 from core.domain.exceptions import DatabaseError
-from core.domain.models import File, StorageContract, StorageNode, UserNode
+from core.domain.models import (
+    ComputeHeartbeat,
+    ComputeNode,
+    ComputeNodeCreateRequest,
+    ComputeTask,
+    ComputeWorkflow,
+    File,
+    StorageContract,
+    StorageNode,
+    TaskCreateRequest,
+    TaskSnapShot,
+    UserNode,
+)
 from core.repositories import (
+    IComputeNodeRepository,
+    IComputeTaskRepository,
+    IComputeWorkflowRepository,
     IFileRepository,
     IStorageRepository,
     ITransactionRepository,
@@ -266,6 +285,128 @@ class MongoTransactionRepository(ITransactionRepository):
 # ---------------------------------------------------------------------------
 
 
-class MongoComputeNodeRepository:
+class MongoComputeNodeRepository(IComputeNodeRepository):
     def __init__(self, db: Database):
-        pass
+        self._col = db["compute_nodes"]
+
+    def create(self, compute_node_data: ComputeNodeCreateRequest) -> None:
+        compute_node_dict = {
+            "node_id": str(uuid4()),
+            "is_active": True,
+            "last_heartbeat": datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "created_at": datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "assigned_tasks": [],
+            "available_disk_mb": compute_node_data.total_disk_mb,
+            "available_ram_mb": compute_node_data.total_ram_mb,
+            "cpu_load": 0,
+            **dataclasses.asdict(compute_node_data),
+        }
+        compute_node = ComputeNode(**compute_node_dict)
+        self._col.insert_one(
+            MongoComputeNodeRepository.computenode_to_document(compute_node)
+        )
+
+    def heartbeat(self, heartbeat: ComputeHeartbeat) -> None:
+        heartbeat_dict = dataclasses.asdict(heartbeat)
+        heartbeat_dict.pop("node_id")
+        self._col.update_one(
+            {"_id": _str_to_oid(heartbeat.node_id)}, {"$set": heartbeat_dict}
+        )
+
+    # def update(self) -> None: ...
+    @staticmethod
+    def computenode_to_document(node: ComputeNode) -> dict:
+        document = dataclasses.asdict(node)
+        document["_id"] = document.pop("node_id")
+        return document
+
+    @staticmethod
+    def document_to_compute_node(document: dict) -> ComputeNode:
+        document["node_id"] = document.pop("_id")
+        document["assigned_tasks"] = [
+            TaskSnapShot(**t) for t in document["assigned_tasks"]
+        ]
+        return ComputeNode(**document)
+
+
+class MongoComputeTaskRepository(IComputeTaskRepository):
+    def __init__(self, db: Database):
+        self._col = db["compute_tasks"]
+
+    def create(self, task: TaskCreateRequest, requester_id: str) -> None:
+        compute_task_dict = {
+            **dataclasses.asdict(task),
+            "task_status": ComputeStatusEnum.RECEIVED,
+            "requester_id": requester_id,
+            "task_id": str(uuid4()),
+            "task_contract": None,
+            "task_output_link": None,
+        }
+        compute_task = ComputeTask(**compute_task_dict)
+        self._col.insert_one(
+            MongoComputeTaskRepository.computetask_to_doc(compute_task)
+        )
+
+    def update(self, task_id: str, **fields) -> None:
+        self._col.update_one({"_id": _str_to_oid(task_id)}, {"$set": fields})
+
+    def cancel(self, task_id: str) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(task_id)},
+            {"$set": {"task_type": ComputeStatusEnum.CANCELLED}},
+        )
+
+    @staticmethod
+    def doc_to_computetask(document: dict) -> ComputeTask:
+        document["task_id"] = document.pop("_id")
+        return ComputeTask(**document)
+
+    @staticmethod
+    def computetask_to_doc(compute_task: ComputeTask) -> dict:
+        document = dataclasses.asdict(compute_task)
+        document["_id"] = document.pop("task_id")
+        return document
+
+
+class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
+    def __init__(self, db: Database):
+        self._col = db["compute_workflows"]
+
+    def create(self, tasks_id: List[str], requester_id: str) -> None:
+        workflow_dict = {
+            "requester_id": requester_id,
+            "workflow_id": str(uuid4()),
+            "tasks_id": tasks_id,
+            "workflow_status": ComputeStatusEnum.RECEIVED,
+            "workflow_contract": None,
+        }
+        workflow = ComputeWorkflow(**workflow_dict)
+        self._col.insert_one(
+            MongoComputeWorkflowRepository.computetask_to_doc(workflow)
+        )
+
+    def update(self, workflow_id: str, **fields) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(workflow_id)}, {"$set": fields}
+        )
+
+    def cancel(self, workflow_id: str) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(workflow_id)},
+            {"$set": {"workflow_status": ComputeStatusEnum.CANCELLED}},
+        )
+
+    @staticmethod
+    def doc_to_computeworkflow(document: dict) -> ComputeWorkflow:
+        document["workflow_id"] = document.pop("_id")
+        return ComputeWorkflow(**document)
+
+    @staticmethod
+    def computetask_to_doc(compute_workflow: ComputeWorkflow) -> dict:
+        document = dataclasses.asdict(compute_workflow)
+        document["_id"] = document.pop("workflow_id")
+        return document

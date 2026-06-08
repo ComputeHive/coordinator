@@ -3,7 +3,15 @@ from __future__ import annotations
 import abc
 from typing import List, Optional
 
-from core.domain.models import File, StorageNode, UserNode
+from core.domain.models import (
+    ComputeHeartbeat,
+    ComputeNodeCreateRequest,
+    ComputeWorkflow,
+    File,
+    StorageNode,
+    TaskCreateRequest,
+    UserNode,
+)
 
 
 class IUserRepository(abc.ABC):
@@ -104,12 +112,33 @@ class ITransactionRepository(abc.ABC):
 
 
 class IComputeNodeRepository(abc.ABC):
-    pass
+    @abc.abstractmethod
+    def create(self, compute_node_data: ComputeNodeCreateRequest) -> None: ...
+
+    @abc.abstractmethod
+    def heartbeat(self, heartbeat: ComputeHeartbeat) -> None: ...
+
+    # @abc.abstractmethod
+    # def update(self) -> None: ...
 
 
 class IComputeTaskRepository(abc.ABC):
-    pass
+    @abc.abstractmethod
+    def create(self, task: TaskCreateRequest, requester_id: str) -> None: ...
+    @abc.abstractmethod
+    def update(self, task_id: str, **fields) -> None: ...
+
+    @abc.abstractmethod
+    def cancel(self, task_id: str) -> None: ...
 
 
 class IComputeWorkflowRepository(abc.ABC):
-    pass
+
+    @abc.abstractmethod
+    def create(self, tasks_id: List[str], requester_id: str) -> None: ...
+
+    @abc.abstractmethod
+    def update(self, workflow_id: str, **fields) -> None: ...
+
+    @abc.abstractmethod
+    def cancel(self, workflow_id: str) -> None: ...
