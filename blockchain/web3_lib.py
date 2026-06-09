@@ -1,7 +1,10 @@
 import json
 import os
 from web3 import Web3
+from pathlib import Path
 
+
+BASE_DIR = Path(__file__).resolve().parent
 infura_url = os.environ["INFURA_URL"]
 address    = os.environ["ADDRESS"]
 private_key = os.environ["PRIVATE_KEY"]
@@ -11,6 +14,7 @@ w3.eth.default_account = address  # updated: defaultAccount is deprecated in web
 
 
 def load_contract_artifacts(file_path: str):
+    file_path = BASE_DIR / "artifacts" / file_path
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data["abi"], data["bytecode"]
