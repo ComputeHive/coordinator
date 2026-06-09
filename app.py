@@ -6,10 +6,11 @@ import pymongo
 from cryptography.fernet import Fernet
 from flask import Flask
 from redis.asyncio import ConnectionPool, Redis
+from supabase import SupabaseStorageClient, create_client
 
 import config as cfg
 import blockchain.web3_lib as web3_library
-from api.blueprints.compute_blueprint import create_compute_node_blueprint
+from api.blueprints.compute_node_blueprint import create_compute_node_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
 from api.blueprints.user_blueprint import create_user_blueprint
 from api.middleware.auth import (
@@ -23,6 +24,7 @@ from core.services.auth_service import AuthService
 from core.services.compute_node_service import ComputeNodeService
 from core.services.heartbeat_service import HeartbeatService
 from core.services.storage_service import StorageService
+from core.services.supabase_service import SupabaseBlobStorage
 from core.services.user_service import UserService
 from infrastructure.database.mongo_repositories import (
     MongoComputeNodeRepository,
@@ -70,6 +72,10 @@ def create_app(env: str = "dev") -> Flask:
         decode_responses=True,
     )
     redis_client = Redis(connection_pool=pool)
+    supabase_client = create_client(
+        app.config["SUPABASE_PROJECT"], app.config["SUPABASE_KEY"]
+    )
+    supabase_storage = SupabaseBlobStorage(supabase_client)
 
     # SHARD_ID_KEY is a Fernet key: already base64-encoded, so encode to bytes
     # but do NOT re-encode if it was stored as bytes already.

@@ -66,4 +66,8 @@ def create_compute_node_blueprint(
                 return jsonify({"message": "Bad Request"}), 400
             return jsonify({"message": str(exc)}), 400
 
+    @bp.get("/assigned-tasks")
+    @auth_required
+    def get_assigned_tasks(username: str): ...
+
     return bp
