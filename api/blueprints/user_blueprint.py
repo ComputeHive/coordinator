@@ -44,7 +44,7 @@ def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint
     @bp.get("/me/wallet")
     @auth_required
     def get_wallet_address(username: str):
-        return jsonify({"decentorage_wallet_address": os.environ["ADDRESS"]}), 200
+        return jsonify({"cera_wallet_address": os.environ["ADDRESS"]}), 200
 
     # ------------------------------------------------------------------
     # Files
@@ -59,7 +59,7 @@ def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint
     @bp.post("/me/files")
     @auth_required
     def create_file(username: str):
-        payload = json.loads(request.json)
+        payload = request.json
         user_service.create_file(username, payload)
         return make_response("", 201)
 
