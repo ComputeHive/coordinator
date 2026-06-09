@@ -4,7 +4,7 @@ import abc
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.domain.models import (
-    ComputeHeartbeat,
+    ComputeNode,
     ComputeNodeCreateRequest,
     File,
     StorageNode,
@@ -115,7 +115,8 @@ class IComputeNodeRepository(abc.ABC):
     def create(self, compute_node_data: ComputeNodeCreateRequest) -> None: ...
 
     @abc.abstractmethod
-    def heartbeat(self, heartbeat: ComputeHeartbeat) -> None: ...
+    def find_by_username(self, username) -> Optional[ComputeNode]: ...
+
     @abc.abstractmethod
     def get_nodes_ip(self, compute_node_ids: List[str]) -> List[Any]: ...
 

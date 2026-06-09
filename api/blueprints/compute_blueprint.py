@@ -1,11 +1,13 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, make_response, request
 
-from core.domain.models import ComputeHeartbeat
-from core.services.compute_service import ComputeService
+from api.blueprints.storage_blueprint import IP_RE, WALLET_RE
+from core.domain.exceptions import ValidationError
+from core.domain.models import ComputeHeartbeat, ComputeNodeCreateRequest
+from core.services.compute_service import ComputeNodeService
 
 
-def create_compute_blueprint(
-    compute_service: ComputeService, auth_required
+def create_compute_node_blueprint(
+    compute_service: ComputeNodeService, auth_required
 ) -> Blueprint:
     bp = Blueprint("compute", __name__, url_prefix="compute")
 
@@ -13,11 +15,48 @@ def create_compute_blueprint(
     @auth_required
     async def heartbeat():
         body = request.json or {}
-        node_status = ComputeHeartbeat(**body)
         try:
+            node_status = ComputeHeartbeat(**body)
             await compute_service.heartbeat_service.add_alive_node(node_status)
             return jsonify({"message": "Successful heartbeat"}), 200
         except Exception as exc:
+            if isinstance(exc, TypeError):
+                return jsonify({"message": "Bad Request"}), 400
+            return jsonify({"message": exc}), 400
+
+    @bp.post("/signup")
+    def signup():
+        body = request.json or {}
+
+        try:
+            compute_node_data = ComputeNodeCreateRequest(**body)
+            if not WALLET_RE.match(compute_node_data.wallet_address):
+                raise ValidationError("Invalid wallet address.")
+            if not isinstance(
+                compute_node_data.ip_address, str
+            ) or not IP_RE.match(compute_node_data.ip_address):
+                raise ValidationError("Invalid IP address.")
+            compute_service.create_compute_node(compute_node_data)
+            return make_response(""), 200
+        except Exception as exc:
+            if isinstance(exc, TypeError):
+                return jsonify({"message": "Bad Request"}), 400
+            return jsonify({"message": exc}), 400
+
+    @bp.post("/signup")
+    def signin():
+        body = request.json or {}
+        try:
+            username = body.get("username", "")
+            password = body.get("password", "")
+            token = compute_service.authenticate_compute_node(
+                username, password
+            )
+
+            return jsonify({"token": token}), 200
+        except Exception as exc:
+            if isinstance(exc, TypeError):
+                return jsonify({"message": "Bad Request"}), 400
             return jsonify({"message": exc}), 400
 
     return bp

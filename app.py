@@ -9,20 +9,27 @@ from redis.asyncio import ConnectionPool, Redis
 
 import blockchain.web3_lib as web3_library
 import config as cfg
+from api.blueprints.compute_blueprint import create_compute_node_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
 from api.blueprints.user_blueprint import create_user_blueprint
 from api.middleware.auth import make_auth_decorator, register_error_handlers
 from api.swagger import register_swagger
 from core.domain.models import File
 from core.services.auth_service import AuthService
+from core.services.compute_service import ComputeNodeService
+from core.services.heartbeat_service import HeartbeatService
 from core.services.storage_service import StorageService
 from core.services.user_service import UserService
 from infrastructure.database.mongo_repositories import (
+    MongoComputeNodeRepository,
+    MongoComputeTaskRepository,
+    MongoComputeWorkflowRepository,
     MongoFileRepository,
     MongoStorageRepository,
     MongoTransactionRepository,
     MongoUserRepository,
 )
+from infrastructure.database.redis_repositories import RedisRepository
 from infrastructure.regeneration.client import RegenerationClient
 from infrastructure.storage_network.client import StorageNetworkClient
 
@@ -77,6 +84,10 @@ def create_app(env: str = "dev") -> Flask:
     storage_repo = MongoStorageRepository(db)
     file_repo = MongoFileRepository(db)
     tx_repo = MongoTransactionRepository(db)
+    compute_node_repo = MongoComputeNodeRepository(db)
+    compute_task_repo = MongoComputeTaskRepository(db)
+    compute_workflow_repo = MongoComputeWorkflowRepository(db)
+    redis_repo = RedisRepository(redis_client)
 
     # ------------------------------------------------------------------
     # Services
@@ -94,7 +105,10 @@ def create_app(env: str = "dev") -> Flask:
         fernet=fernet,
         storage_repo=storage_repo,
     )
-
+    heartbeat_service = HeartbeatService(redis_repo, compute_node_repo)
+    compute_node_service = ComputeNodeService(
+        heartbeat_service, auth_service, compute_node_repo
+    )
     regeneration_client = RegenerationClient(file_repo)
     # file_repo.create(
     #     File(
@@ -135,6 +149,9 @@ def create_app(env: str = "dev") -> Flask:
     storage_auth = make_auth_decorator(
         auth_service, storage_service.verify_active
     )
+    compute_node_auth = make_auth_decorator(
+        auth_service, compute_node_service.verify_exists
+    )
 
     # ------------------------------------------------------------------
     # Blueprints
@@ -143,6 +160,9 @@ def create_app(env: str = "dev") -> Flask:
     app.register_blueprint(create_user_blueprint(user_service, user_auth))
     app.register_blueprint(
         create_storage_blueprint(storage_service, storage_auth)
+    )
+    app.register_blueprint(
+        create_compute_node_blueprint(compute_node_service, compute_node_auth)
     )
 
     # ------------------------------------------------------------------

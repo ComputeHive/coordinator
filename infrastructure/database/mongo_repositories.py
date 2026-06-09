@@ -312,6 +312,14 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             )
         )
 
+    def find_by_username(self, username) -> Optional[ComputeNode]:
+        document = self._col.find_one({"username": username})
+        return (
+            MongoComputeNodeRepository.document_to_compute_node(document)
+            if document
+            else None
+        )
+
     # def update(self) -> None: ...
     @staticmethod
     def computenode_to_document(node: ComputeNode) -> dict:
