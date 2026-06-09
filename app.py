@@ -7,16 +7,20 @@ from cryptography.fernet import Fernet
 from flask import Flask
 from redis.asyncio import ConnectionPool, Redis
 
-import blockchain.web3_lib as web3_library
 import config as cfg
+import blockchain.web3_lib as web3_library
 from api.blueprints.compute_blueprint import create_compute_node_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
 from api.blueprints.user_blueprint import create_user_blueprint
-from api.middleware.auth import make_auth_decorator, register_error_handlers
+from api.middleware.auth import (
+    make_auth_decorator,
+    register_error_handlers,
+    make_async_auth_decorator,
+)
 from api.swagger import register_swagger
 from core.domain.models import File
 from core.services.auth_service import AuthService
-from core.services.compute_service import ComputeNodeService
+from core.services.compute_node_service import ComputeNodeService
 from core.services.heartbeat_service import HeartbeatService
 from core.services.storage_service import StorageService
 from core.services.user_service import UserService
@@ -149,7 +153,7 @@ def create_app(env: str = "dev") -> Flask:
     storage_auth = make_auth_decorator(
         auth_service, storage_service.verify_active
     )
-    compute_node_auth = make_auth_decorator(
+    compute_node_auth = make_async_auth_decorator(
         auth_service, compute_node_service.verify_exists
     )
 

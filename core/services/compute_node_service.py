@@ -22,6 +22,7 @@ class ComputeNodeService:
 
     def create_compute_node(self, compute_node: ComputeNodeCreateRequest):
         compute_node_dict = dataclasses.asdict(compute_node)
+
         if self.verify_exists(compute_node_dict["username"]):
             raise ConflictError("Username already exists")
         compute_node_dict["password"] = self._auth.hash_password(

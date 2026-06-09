@@ -1,32 +1,39 @@
+import json
+
 from flask import Blueprint, jsonify, make_response, request
 
 from api.blueprints.storage_blueprint import IP_RE, WALLET_RE
 from core.domain.exceptions import ValidationError
 from core.domain.models import ComputeHeartbeat, ComputeNodeCreateRequest
-from core.services.compute_service import ComputeNodeService
+from core.services.compute_node_service import ComputeNodeService
 
 
 def create_compute_node_blueprint(
     compute_service: ComputeNodeService, auth_required
 ) -> Blueprint:
-    bp = Blueprint("compute", __name__, url_prefix="compute")
+    bp = Blueprint("compute", __name__, url_prefix="/compute-nodes")
 
     @bp.post("/heartbeat")
     @auth_required
-    async def heartbeat():
-        body = request.json or {}
+    async def heartbeat(username: str):
+        body = request.get_json()
         try:
+
+            print()
             node_status = ComputeHeartbeat(**body)
-            await compute_service.heartbeat_service.add_alive_node(node_status)
+            await compute_service.heartbeat_service.add_alive_node(
+                username, node_status
+            )
             return jsonify({"message": "Successful heartbeat"}), 200
         except Exception as exc:
             if isinstance(exc, TypeError):
+                print(exc)
                 return jsonify({"message": "Bad Request"}), 400
-            return jsonify({"message": exc}), 400
+            return jsonify({"message": str(exc)}), 400
 
     @bp.post("/signup")
     def signup():
-        body = request.json or {}
+        body = request.get_json()
 
         try:
             compute_node_data = ComputeNodeCreateRequest(**body)
@@ -41,11 +48,11 @@ def create_compute_node_blueprint(
         except Exception as exc:
             if isinstance(exc, TypeError):
                 return jsonify({"message": "Bad Request"}), 400
-            return jsonify({"message": exc}), 400
+            return jsonify({"message": str(exc)}), 400
 
-    @bp.post("/signup")
+    @bp.post("/signin")
     def signin():
-        body = request.json or {}
+        body = request.get_json()
         try:
             username = body.get("username", "")
             password = body.get("password", "")
@@ -57,6 +64,6 @@ def create_compute_node_blueprint(
         except Exception as exc:
             if isinstance(exc, TypeError):
                 return jsonify({"message": "Bad Request"}), 400
-            return jsonify({"message": exc}), 400
+            return jsonify({"message": str(exc)}), 400
 
     return bp

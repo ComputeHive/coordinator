@@ -19,7 +19,6 @@ from core.domain.models import (
     StorageContract,
     StorageNode,
     TaskCreateRequest,
-    TaskSnapShot,
     UserNode,
 )
 from core.repositories import (
@@ -294,23 +293,28 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             "created_at": datetime.datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
-            "assigned_tasks": [],
             **dataclasses.asdict(compute_node_data),
         }
-        compute_node = ComputeNode(**compute_node_dict)
-        self._col.insert_one(
-            MongoComputeNodeRepository.computenode_to_document(compute_node)
-        )
+        try:
+            compute_node = ComputeNode(**compute_node_dict)
+            self._col.insert_one(
+                MongoComputeNodeRepository.computenode_to_document(
+                    compute_node
+                )
+            )
+        except Exception as exc:
+            print(exc)
 
     def get_nodes_ip(self, compute_node_ids: List[str]):
         compute_node_object_ids = list(
             map(lambda x: _str_to_oid(x), compute_node_ids)
         )
-        return list(
-            self._col.find(
-                {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
-            )
+        document = self._col.find(
+            {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
         )
+        if not document:
+            raise ValueError("No Nodes with these ips")
+        return list(map(lambda x: x["ip_address"], list(document)))
 
     def find_by_username(self, username) -> Optional[ComputeNode]:
         document = self._col.find_one({"username": username})
@@ -319,6 +323,12 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             if document
             else None
         )
+
+    def get_node_id_by_username(self, username) -> Optional[str]:
+        document = self._col.find_one({"username": username}, {"_id": 1})
+        if not document:
+            raise ValueError("No node with this username")
+        return document["_id"]
 
     # def update(self) -> None: ...
     @staticmethod
@@ -330,9 +340,6 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
     @staticmethod
     def document_to_compute_node(document: dict) -> ComputeNode:
         document["node_id"] = document.pop("_id")
-        document["assigned_tasks"] = [
-            TaskSnapShot(**t) for t in document["assigned_tasks"]
-        ]
         return ComputeNode(**document)
 
 

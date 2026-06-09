@@ -141,11 +141,10 @@ class ComputeNodeCreateRequest:
 
 @dataclass(frozen=True)
 class ComputeHeartbeat:
-    node_id: str
     cpu_load: int
     available_ram_mb: int
     available_disk_mb: int
-    assigned_tasks: List[TaskSnapShot]
+    assigned_tasks: list[TaskSnapShot]
 
 
 @dataclass(frozen=True)
