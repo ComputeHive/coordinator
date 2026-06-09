@@ -118,7 +118,7 @@ def _build_spec(app: Flask) -> dict:
                 },
                 "WalletResponse": {
                     "type": "object",
-                    "properties": {"decentorage_wallet_address": {"type": "string"}},
+                    "properties": {"cera_wallet_address": {"type": "string"}},
                 },
                 "StateResponse": {
                     "type": "object",
