@@ -166,6 +166,10 @@ class StorageService:
     # ------------------------------------------------------------------
 
     def shard_done_uploading(self, shard_id_enc: str) -> None:
+        # print("Shard done uploading: ", shard_id_enc)
+        # encrypted = self._fernet.encrypt(b"file123$DCNTRG$0$DCNTRG$1").decode()
+        # print("Encrypted: ", encrypted)
+
         raw = self._fernet.decrypt(shard_id_enc.encode()).decode()
         parts = raw.split("$DCNTRG$")
         file_id, seg_no, shard_no = parts[0], int(parts[1]), int(parts[2])

@@ -11,6 +11,7 @@ from api.blueprints.user_blueprint import create_user_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
 from api.swagger import register_swagger
 from api.middleware.auth import make_auth_decorator, register_error_handlers
+from core.domain.models import File
 from core.services.auth_service import AuthService
 from core.services.user_service import UserService
 from core.services.storage_service import StorageService
@@ -85,6 +86,27 @@ def create_app(env: str = "dev") -> Flask:
     )
 
     regeneration_client = RegenerationClient(file_repo)
+    # file_repo.create(
+    #     File(
+    #         id="file123",
+    #         username="user1",
+    #         filename="test.txt",
+    #         file_size=1024,
+    #         download_count=0,
+    #         duration_in_months=12,
+    #         contract_address="0xFAKE_CONTRACT",
+    #         price=10.0,
+    #         paid=False,
+    #         segments=[
+    #             {
+    #                 "shards": [
+    #                     {"shard_id": "gAAAAAB..."}
+    #                 ]
+    #             }
+    #         ],
+    #         done_uploading=False
+    #     ).__dict__
+    # )
     storage_service = StorageService(
         storage_repo=storage_repo,
         file_repo=file_repo,
