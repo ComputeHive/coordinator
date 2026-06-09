@@ -1,6 +1,6 @@
 # CERA Coordinator
 
-The **Coordinator** is the central Flask service for the CERA decentralised storage network. It acts as the control plane between end users, storage nodes, and the Ethereum smart contract layer — handling authentication, file orchestration, shard distribution, availability tracking, payments, and automated regeneration of degraded data.
+The **Coordinator** is the central Flask service for the CERA distributed storage network. It acts as the control plane between end users, storage nodes, and the Ethereum smart contract layer — handling authentication, file orchestration, shard distribution, availability tracking, payments, and automated regeneration of degraded data.
 
 ---
 
