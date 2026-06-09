@@ -136,3 +136,4 @@ set_env.bash
 decent/
 output
 .vscode/
+script_test.py

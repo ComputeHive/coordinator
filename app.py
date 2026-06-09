@@ -5,25 +5,27 @@ import importlib
 import pymongo
 from cryptography.fernet import Fernet
 from flask import Flask
+from redis.asyncio import ConnectionPool, Redis
 
+import blockchain.web3_lib as web3_library
 import config as cfg
-from api.blueprints.user_blueprint import create_user_blueprint
 from api.blueprints.storage_blueprint import create_storage_blueprint
-from api.swagger import register_swagger
+from api.blueprints.user_blueprint import create_user_blueprint
 from api.middleware.auth import make_auth_decorator, register_error_handlers
+from api.swagger import register_swagger
 from core.domain.models import File
 from core.services.auth_service import AuthService
-from core.services.user_service import UserService
 from core.services.storage_service import StorageService
+from core.services.user_service import UserService
 from infrastructure.database.mongo_repositories import (
     MongoFileRepository,
     MongoStorageRepository,
     MongoTransactionRepository,
     MongoUserRepository,
 )
-from infrastructure.storage_network.client import StorageNetworkClient
 from infrastructure.regeneration.client import RegenerationClient
-import blockchain.web3_lib as web3_library
+from infrastructure.storage_network.client import StorageNetworkClient
+
 
 def create_app(env: str = "dev") -> Flask:
     """Build and return a configured Flask application."""
@@ -38,7 +40,9 @@ def create_app(env: str = "dev") -> Flask:
         "dev": cfg.DevelopmentConfig,
     }
     if env not in config_map:
-        raise ValueError(f"Unknown environment: {env!r}. Choose 'dev' or 'prod'.")
+        raise ValueError(
+            f"Unknown environment: {env!r}. Choose 'dev' or 'prod'."
+        )
 
     app.config.from_object(config_map[env])
 
@@ -48,6 +52,13 @@ def create_app(env: str = "dev") -> Flask:
 
     mongo_client = pymongo.MongoClient(app.config["DATABASE_URI"])
     db = mongo_client[app.config["DATABASE_NAME"]]
+
+    pool = ConnectionPool.from_url(
+        app.config["REDIS_DATABASE_URI"],
+        max_connections=20,
+        decode_responses=True,
+    )
+    redis_client = Redis(connection_pool=pool)
 
     # SHARD_ID_KEY is a Fernet key: already base64-encoded, so encode to bytes
     # but do NOT re-encode if it was stored as bytes already.
@@ -72,7 +83,6 @@ def create_app(env: str = "dev") -> Flask:
     # ------------------------------------------------------------------
 
     auth_service = AuthService(app.config["SECRET_KEY"])
-
 
     user_service = UserService(
         user_repo=user_repo,
@@ -122,14 +132,18 @@ def create_app(env: str = "dev") -> Flask:
     # ------------------------------------------------------------------
 
     user_auth = make_auth_decorator(auth_service, user_service.verify_exists)
-    storage_auth = make_auth_decorator(auth_service, storage_service.verify_active)
+    storage_auth = make_auth_decorator(
+        auth_service, storage_service.verify_active
+    )
 
     # ------------------------------------------------------------------
     # Blueprints
     # ------------------------------------------------------------------
 
     app.register_blueprint(create_user_blueprint(user_service, user_auth))
-    app.register_blueprint(create_storage_blueprint(storage_service, storage_auth))
+    app.register_blueprint(
+        create_storage_blueprint(storage_service, storage_auth)
+    )
 
     # ------------------------------------------------------------------
     # Error handlers
@@ -151,7 +165,9 @@ def create_app(env: str = "dev") -> Flask:
         response.headers["Access-Control-Allow-Headers"] = (
             "Origin, Content-Type, User-Agent, Content-Range, Token, Code"
         )
-        response.headers["Access-Control-Expose-Headers"] = "DAV, content-length, Allow"
+        response.headers["Access-Control-Expose-Headers"] = (
+            "DAV, content-length, Allow"
+        )
         return response
 
     register_swagger(app)

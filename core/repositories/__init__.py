@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import abc
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from core.domain.models import (
     ComputeHeartbeat,
     ComputeNodeCreateRequest,
-    ComputeWorkflow,
     File,
     StorageNode,
     TaskCreateRequest,
@@ -142,3 +141,26 @@ class IComputeWorkflowRepository(abc.ABC):
 
     @abc.abstractmethod
     def cancel(self, workflow_id: str) -> None: ...
+
+
+class IRedisRepository(abc.ABC):
+
+    async def set_hash(
+        self, key: str, fields: dict, ttl_seconds: Optional[int] = None
+    ) -> bool: ...
+
+    async def get(self, key: str) -> Optional[Dict]: ...
+
+    async def delete(self, key: str) -> bool: ...
+
+    async def scan_all(self, key_prefix: str) -> List[Tuple[str, Dict]]: ...
+
+    async def queue_push(self, key: str, raw: str) -> bool: ...
+
+    async def queue_pop(
+        self, key: str, timeout: int = 10
+    ) -> Optional[str | bytes]: ...
+
+    async def queue_length(self, key: str) -> int: ...
+
+    async def queue_clear(self, key: str) -> bool: ...
