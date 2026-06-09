@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.domain.models import (
     ComputeHeartbeat,
@@ -116,6 +116,8 @@ class IComputeNodeRepository(abc.ABC):
 
     @abc.abstractmethod
     def heartbeat(self, heartbeat: ComputeHeartbeat) -> None: ...
+    @abc.abstractmethod
+    def get_nodes_ip(self, compute_node_ids: List[str]) -> List[Any]: ...
 
     # @abc.abstractmethod
     # def update(self) -> None: ...

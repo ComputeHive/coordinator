@@ -2,8 +2,10 @@ from typing import Dict, List, Optional, Tuple
 
 from redis.asyncio import Redis
 
+from core.repositories import IRedisRepository
 
-class RedisRepository:
+
+class RedisRepository(IRedisRepository):
     def __init__(self, client: Redis):
         self._client = client
 

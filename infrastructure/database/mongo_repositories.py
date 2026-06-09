@@ -11,7 +11,6 @@ from pymongo.database import Database
 from core.domain.enums import ComputeStatusEnum
 from core.domain.exceptions import DatabaseError
 from core.domain.models import (
-    ComputeHeartbeat,
     ComputeNode,
     ComputeNodeCreateRequest,
     ComputeTask,
@@ -292,17 +291,10 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
     def create(self, compute_node_data: ComputeNodeCreateRequest) -> None:
         compute_node_dict = {
             "node_id": str(uuid4()),
-            "is_active": True,
-            "last_heartbeat": datetime.datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
             "created_at": datetime.datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
             "assigned_tasks": [],
-            "available_disk_mb": compute_node_data.total_disk_mb,
-            "available_ram_mb": compute_node_data.total_ram_mb,
-            "cpu_load": 0,
             **dataclasses.asdict(compute_node_data),
         }
         compute_node = ComputeNode(**compute_node_dict)
@@ -310,11 +302,14 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             MongoComputeNodeRepository.computenode_to_document(compute_node)
         )
 
-    def heartbeat(self, heartbeat: ComputeHeartbeat) -> None:
-        heartbeat_dict = dataclasses.asdict(heartbeat)
-        heartbeat_dict.pop("node_id")
-        self._col.update_one(
-            {"_id": _str_to_oid(heartbeat.node_id)}, {"$set": heartbeat_dict}
+    def get_nodes_ip(self, compute_node_ids: List[str]):
+        compute_node_object_ids = list(
+            map(lambda x: _str_to_oid(x), compute_node_ids)
+        )
+        return list(
+            self._col.find(
+                {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
+            )
         )
 
     # def update(self) -> None: ...
@@ -344,6 +339,7 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
             "requester_id": requester_id,
             "task_id": str(uuid4()),
             "task_contract": None,
+            "assigned_node_id": None,
             "task_output_link": None,
         }
         compute_task = ComputeTask(**compute_task_dict)

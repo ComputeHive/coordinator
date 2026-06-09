@@ -145,22 +145,13 @@ class ComputeHeartbeat:
     cpu_load: int
     available_ram_mb: int
     available_disk_mb: int
-    total_cpu_cores: int
-    total_ram_mb: int
-    total_disk_mb: int
     assigned_tasks: List[TaskSnapShot]
 
 
 @dataclass(frozen=True)
-class ComputeNode(ComputeHeartbeat):
-    username: str
-    password: str
-    wallet_address: str
-    ip_address: str
-    cpu_model: str
+class ComputeNode(ComputeNodeCreateRequest):
+    node_id: str
     created_at: datetime.datetime
-    last_heartbeat: datetime.datetime
-    is_active: bool
 
 
 @dataclass(frozen=True)
@@ -188,6 +179,7 @@ class TaskSnapShot:
 
 @dataclass(frozen=True)
 class ComputeTask(TaskSnapShot):
+    assigned_node_id: str  # ObjectID
     requester_id: str
     task_link: str
     task_contract: TaskContract

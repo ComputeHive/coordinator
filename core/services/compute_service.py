@@ -1,2 +1,6 @@
+from core.services.heartbeat_service import HeartbeatService
+
+
 class ComputeService:
-    pass
+    def __init__(self, heartbeat_service: HeartbeatService):
+        self.heartbeat_service = heartbeat_service
