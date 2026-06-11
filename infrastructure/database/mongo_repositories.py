@@ -278,9 +278,9 @@ class MongoTransactionRepository(ITransactionRepository):
         self._col.insert_one({"transaction": transaction_hash})
 
 
-# ---------------------------------------------------------------------------
+#####################################
 # Compute Node repository
-# ---------------------------------------------------------------------------
+#####################################
 
 
 class MongoComputeNodeRepository(IComputeNodeRepository):
@@ -347,12 +347,11 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
     def __init__(self, db: Database):
         self._col = db["compute_tasks"]
 
-    def create(self, task: TaskCreateRequest, requester_id: str) -> None:
+    def create(self, task: TaskCreateRequest, requester_username: str) -> None:
         compute_task_dict = {
             **dataclasses.asdict(task),
             "task_status": ComputeStatusEnum.RECEIVED,
-            "requester_id": requester_id,
-            "task_id": str(uuid4()),
+            "requester_username": requester_username,
             "task_contract": None,
             "assigned_node_id": None,
             "task_output_link": None,

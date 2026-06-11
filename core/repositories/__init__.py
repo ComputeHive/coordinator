@@ -128,7 +128,9 @@ class IComputeNodeRepository(abc.ABC):
 
 class IComputeTaskRepository(abc.ABC):
     @abc.abstractmethod
-    def create(self, task: TaskCreateRequest, requester_id: str) -> None: ...
+    def create(
+        self, task: TaskCreateRequest, requester_username: str
+    ) -> None: ...
     @abc.abstractmethod
     def update(self, task_id: str, **fields) -> None: ...
 

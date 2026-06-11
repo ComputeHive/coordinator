@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import BinaryIO, Optional, Union, Dict, Any
+from typing import Optional, Dict, Any
 
 
 class IBlobStorage(ABC):
@@ -15,7 +15,7 @@ class IBlobStorage(ABC):
         self,
         bucket_name: str,
         object_name: str,
-        data: Union[bytes, BinaryIO],
+        data: bytes,
         options: Optional[Dict[str, Any]] = None,
     ) -> Any:
         pass

@@ -1,10 +1,15 @@
-from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 import datetime
-from dataclasses import dataclass, field
-from typing import List
 
-from core.domain.enums import ComputeStatusEnum, TaskTypeEnum
+from core.domain.enums import (
+    ComputeStatusEnum,
+    TaskTypeEnum,
+    InputSourceTypeEnum,
+    WorkflowTypeEnum,
+)
 
 # ---------------------------------------------------------------------------
 # Shard / Segment
@@ -122,9 +127,89 @@ def calculate_price(
     return int(price_ether * WEI_PER_ETHER)
 
 
-# ---------------------------------------------------------------------------
+########################################
+# Tasks
+########################################
+
+
+@dataclass(frozen=True)
+class TaskContract:  # TODO: WIP
+    pass
+
+
+@dataclass(frozen=True)
+class TaskCreateRequest:
+    task_id: str
+    task_link: str
+    task_type: TaskTypeEnum
+
+
+@dataclass(frozen=True)
+class TaskSnapShot:
+    task_id: str  # mongodb ObjectId
+    task_type: TaskTypeEnum
+    task_status: ComputeStatusEnum
+
+
+@dataclass(frozen=True)
+class ComputeTask(TaskSnapShot):
+    assigned_node_id: str  # ObjectID
+    requester_username: str
+    task_link: str
+    task_contract: TaskContract
+    task_output_link: str
+
+
+@dataclass(frozen=True)
+class TaskMetadata:
+    task_id: str
+    requester_ip_address: str
+    ram_mb: int
+    cpu_cores: int
+    disk_mb: int
+
+
+@dataclass(frozen=True)
+class InputItem:
+    source: InputSourceTypeEnum
+    value: Any
+    type: str
+
+
+@dataclass(frozen=True)
+class InputFileMetaData:
+    file_name: str
+    link: Optional[str] = None
+    file_path: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class DecoratorParams:
+    ram_mb: int = 256
+    disk_mb: int = 512
+    cpu_cores: int = 1
+    timeout_seconds: int = 30
+    max_retries: int = 3
+    num_of_partitions: Optional[int] = None
+    balanced_partition: bool = False
+
+
+@dataclass(frozen=True)
+class TaskPayload:
+    id: UUID
+    type: TaskTypeEnum
+    requester_ip_address: str = "192.168.1.1"
+    name: Optional[str] = None
+    resources: DecoratorParams = field(default_factory=DecoratorParams)
+    inputs: Optional[Dict[str, InputItem]] = None
+    input_files: Optional[List[InputFileMetaData]] = None
+    output_schema: Optional[Dict[str, str]] = None
+    hash_sha256: Optional[str] = None
+
+
+#####################################
 # Compute Node
-# ---------------------------------------------------------------------------
+#####################################
 
 
 @dataclass(frozen=True)
@@ -142,6 +227,7 @@ class ComputeNodeCreateRequest:
 @dataclass(frozen=True)
 class ComputeHeartbeat:
     cpu_load: int
+    cpu_cores: int
     available_ram_mb: int
     available_disk_mb: int
     assigned_tasks: list[TaskSnapShot]
@@ -154,35 +240,19 @@ class ComputeNode(ComputeNodeCreateRequest):
 
 
 @dataclass(frozen=True)
-class TaskContract:  # TODO: WIP
-    pass
+class ActiveComputeNode(ComputeHeartbeat):
+    node_id: str
+    ip_address: str
+
+
+########################################
+# Workflows
+########################################
 
 
 @dataclass(frozen=True)
 class WorkflowContract:  # TODO: WIP
     pass
-
-
-@dataclass(frozen=True)
-class TaskCreateRequest:
-    task_link: str
-    task_type: TaskTypeEnum
-
-
-@dataclass(frozen=True)
-class TaskSnapShot:
-    task_id: str  # mongodb ObjectId
-    task_type: TaskTypeEnum
-    task_status: ComputeStatusEnum
-
-
-@dataclass(frozen=True)
-class ComputeTask(TaskSnapShot):
-    assigned_node_id: str  # ObjectID
-    requester_id: str
-    task_link: str
-    task_contract: TaskContract
-    task_output_link: str
 
 
 @dataclass(frozen=True)
@@ -198,3 +268,17 @@ class ComputeWorkflow:
 class WorkflowCreateRequest:
     task_links: List[str]
     task_types: List[TaskTypeEnum]
+
+
+@dataclass(frozen=True)
+class TaskParents:
+    task_id: str
+    task_type: Optional[TaskTypeEnum]
+    parents: List[str]
+
+
+@dataclass(frozen=True)
+class WorkflowTemplate:
+    workflow_id: str
+    workflow_type: WorkflowTypeEnum
+    tasks: List[TaskParents]

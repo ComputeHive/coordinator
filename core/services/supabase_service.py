@@ -9,19 +9,24 @@ class SupabaseBlobStorage(IBlobStorage):
         self.client = supabase_client
 
     def create_bucket(
-        self, bucket_name: str, options: Optional[Dict[str, Any]] = None
+        self,
+        bucket_id: str,
+        bucket_name: str,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Any:
-        return self.client.storage.create_bucket(bucket_name, options)
+        return self.client.storage.create_bucket(
+            id=bucket_id, name=bucket_name, options=options
+        )
 
     def upload(
         self,
         bucket_name: str,
         object_name: str,
-        data: Union[bytes, BinaryIO],
+        data: bytes,
         options: Optional[Dict[str, Any]] = None,
     ) -> Any:
         return self.client.storage.from_(bucket_name).upload(
-            path=object_name, file=data, file_options=options or {}
+            path=object_name, file=data, file_options=options
         )
 
     def download(self, bucket_name: str, object_name: str) -> bytes:

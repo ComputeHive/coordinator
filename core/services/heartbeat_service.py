@@ -1,7 +1,7 @@
 import dataclasses
 import json
 
-from core.domain.models import ComputeHeartbeat
+from core.domain.models import ActiveComputeNode, ComputeHeartbeat
 from core.repositories import IComputeNodeRepository, IRedisRepository
 
 
@@ -22,12 +22,17 @@ class HeartbeatService:
         if nodes is None:
             return []
         node_ids = list(map(lambda x: x[0], nodes))
-        # TODO: Add function to update the assigned tasks
+
         ips = self._db_repo.get_nodes_ip(node_ids)
-        # if len(ips) != len(node_ids):
-        #     raise RuntimeError(f"")
         for entry, ip in zip(nodes, ips):
             entry[1]["ip_address"] = ip
+            entry[1]["node_id"] = entry[0].removeprefix(self.NODE_KEY_PREFIX)
+        nodes = list(
+            map(
+                lambda node: ActiveComputeNode(**node[1]),
+                nodes,
+            )
+        )
         return nodes
 
     async def add_alive_node(

@@ -19,7 +19,6 @@ def create_compute_node_blueprint(
         body = request.get_json()
         try:
 
-            print()
             node_status = ComputeHeartbeat(**body)
             await compute_service.heartbeat_service.add_alive_node(
                 username, node_status
