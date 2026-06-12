@@ -138,6 +138,12 @@ class TaskContract:  # TODO: WIP
 
 
 @dataclass(frozen=True)
+class TaskFinishedRequest:
+    task_id: str
+    output_link: str
+
+
+@dataclass(frozen=True)
 class TaskCreateRequest:
     task_id: str
     task_link: str
@@ -158,15 +164,7 @@ class ComputeTask(TaskSnapShot):
     task_link: str
     task_contract: TaskContract
     task_output_link: str
-
-
-@dataclass(frozen=True)
-class TaskMetadata:
-    task_id: str
     requester_ip_address: str
-    ram_mb: int
-    cpu_cores: int
-    disk_mb: int
 
 
 @dataclass(frozen=True)
@@ -198,7 +196,6 @@ class DecoratorParams:
 class TaskPayload:
     id: UUID
     type: TaskTypeEnum
-    requester_ip_address: str = "192.168.1.1"
     name: Optional[str] = None
     resources: DecoratorParams = field(default_factory=DecoratorParams)
     inputs: Optional[Dict[str, InputItem]] = None
@@ -257,17 +254,19 @@ class WorkflowContract:  # TODO: WIP
 
 @dataclass(frozen=True)
 class ComputeWorkflow:
-    requester_id: str
+    requester_username: str
+    requester_ip_address: str
     workflow_id: str
     tasks_id: List[str]
     workflow_status: ComputeStatusEnum
-    workflow_contract: WorkflowContract
+    workflow_contract: Optional[WorkflowContract]
 
 
 @dataclass(frozen=True)
 class WorkflowCreateRequest:
-    task_links: List[str]
-    task_types: List[TaskTypeEnum]
+    workflow_id: str
+    workflow_link: str
+    workflow_type: WorkflowTypeEnum
 
 
 @dataclass(frozen=True)

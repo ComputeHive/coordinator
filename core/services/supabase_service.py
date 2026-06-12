@@ -1,6 +1,8 @@
-from typing import BinaryIO, Optional, Union, Dict, Any
+from typing import Optional, Dict, Any
 from core.services.Iblob_service import IBlobStorage
 from supabase import Client
+
+BUCKET_NAME = "CERA_COORDINATOR"
 
 
 class SupabaseBlobStorage(IBlobStorage):

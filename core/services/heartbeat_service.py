@@ -1,13 +1,17 @@
 import dataclasses
 import json
 
-from core.domain.models import ActiveComputeNode, ComputeHeartbeat
+from core.domain.models import (
+    ActiveComputeNode,
+    ComputeHeartbeat,
+    TaskSnapShot,
+)
 from core.repositories import IComputeNodeRepository, IRedisRepository
 
 
 class HeartbeatService:
     HEARTBEAT_PERIOD = 30
-    HEARTBEAT_TTL = 2.5 * HEARTBEAT_PERIOD
+    HEARTBEAT_TTL = int(2.5 * HEARTBEAT_PERIOD)
     NODE_KEY_PREFIX = "node:"
 
     def __init__(
@@ -27,6 +31,10 @@ class HeartbeatService:
         for entry, ip in zip(nodes, ips):
             entry[1]["ip_address"] = ip
             entry[1]["node_id"] = entry[0].removeprefix(self.NODE_KEY_PREFIX)
+            entry[1]["assigned_tasks"] = [
+                TaskSnapShot(**t)
+                for t in json.loads(entry[1]["assigned_tasks"])
+            ]
         nodes = list(
             map(
                 lambda node: ActiveComputeNode(**node[1]),
@@ -40,11 +48,15 @@ class HeartbeatService:
     ):
         node_status_dict = dataclasses.asdict(node_status)
         node_id = self._db_repo.get_node_id_by_username(username)
+        if node_id is None:
+            raise RuntimeError("Node doesn't exist")
         node_status_dict["assigned_tasks"] = json.dumps(
             node_status.assigned_tasks
         )
         added = await self._cache_repo.set_hash(
-            str(self.NODE_KEY_PREFIX + str(node_id)), node_status_dict
+            str(self.NODE_KEY_PREFIX + str(node_id)),
+            node_status_dict,
+            ttl_seconds=self.HEARTBEAT_TTL,
         )
         if not added:
             raise RuntimeError(

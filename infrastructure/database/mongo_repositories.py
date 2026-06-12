@@ -347,11 +347,17 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
     def __init__(self, db: Database):
         self._col = db["compute_tasks"]
 
-    def create(self, task: TaskCreateRequest, requester_username: str) -> None:
+    def create(
+        self,
+        task: TaskCreateRequest,
+        requester_username: str,
+        requester_ip_address: str,
+    ) -> None:
         compute_task_dict = {
             **dataclasses.asdict(task),
             "task_status": ComputeStatusEnum.RECEIVED,
             "requester_username": requester_username,
+            "requester_ip_address": requester_ip_address,
             "task_contract": None,
             "assigned_node_id": None,
             "task_output_link": None,
@@ -386,17 +392,11 @@ class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
     def __init__(self, db: Database):
         self._col = db["compute_workflows"]
 
-    def create(self, tasks_id: List[str], requester_id: str) -> None:
-        workflow_dict = {
-            "requester_id": requester_id,
-            "workflow_id": str(uuid4()),
-            "tasks_id": tasks_id,
-            "workflow_status": ComputeStatusEnum.RECEIVED,
-            "workflow_contract": None,
-        }
-        workflow = ComputeWorkflow(**workflow_dict)
+    def create_workflow(self, compute_workflow: ComputeWorkflow) -> None:
         self._col.insert_one(
-            MongoComputeWorkflowRepository.computeworkflow_to_doc(workflow)
+            MongoComputeWorkflowRepository.computeworkflow_to_doc(
+                compute_workflow
+            )
         )
 
     def update(self, workflow_id: str, **fields) -> None:

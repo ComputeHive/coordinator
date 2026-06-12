@@ -39,7 +39,7 @@ class ECDHKeyGenerator:
         salt: Optional[bytes] = None,
         key_length: int = 32,
     ) -> bytes:
-        info: bytes = BaseConfig.HDKF_INFO.encode()
+        info: bytes = BaseConfig.HKDF_INFO.encode()
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
             length=key_length,

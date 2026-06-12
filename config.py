@@ -22,8 +22,7 @@ class BaseConfig:
     KEYSTORE_DIR: str = os.environ["KEYSTORE_DIR"]
     SUPABASE_PROJECT: str = os.environ["SUPABASE_URL"]
     SUPABASE_KEY: str = os.environ["SUPABASE_KEY"]
-    HDKF_INFO: str = os.environ["HDKF_INFO"]
-    BUCKET_NAME: str = os.environ["BUCKET_NAME"]
+    HKDF_INFO: str = os.environ["HKDF_INFO"]
 
 
 class DevelopmentConfig(BaseConfig):

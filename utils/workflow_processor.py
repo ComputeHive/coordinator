@@ -45,7 +45,7 @@ class WorkflowProcessor:
         return dict(children_per_node), edges
 
     @staticmethod
-    def download_workflow_package(url: str, workflow_id: str):
+    def download_workflow_package(url: str, workflow_id: str) -> Path:
         os.makedirs(WorkflowProcessor.BASE_DIR, exist_ok=True)
         file_name = unquote(Path(urlparse(url).path).name)
         file_path = WorkflowProcessor.BASE_DIR / workflow_id / file_name

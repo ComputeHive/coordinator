@@ -1,5 +1,3 @@
-import json
-
 from flask import Blueprint, jsonify, make_response, request
 
 from api.blueprints.storage_blueprint import IP_RE, WALLET_RE
@@ -17,6 +15,7 @@ def create_compute_node_blueprint(
     @auth_required
     async def heartbeat(username: str):
         body = request.get_json()
+
         try:
 
             node_status = ComputeHeartbeat(**body)
@@ -67,6 +66,17 @@ def create_compute_node_blueprint(
 
     @bp.get("/assigned-tasks")
     @auth_required
-    def get_assigned_tasks(username: str): ...
+    async def get_assigned_tasks(username: str):
+        num_tasks = request.args.get("tasks_number", type=int, default=3)
+        try:
+            tasks = await compute_service.get_assigned_tasks(
+                username, num_tasks
+            )
+            print(tasks)
+            return jsonify({"tasks": tasks}), 200
+        except Exception as exc:
+            if isinstance(exc, TypeError):
+                return jsonify({"message": "Bad Request"}), 400
+            return jsonify({"message": str(exc)}), 400
 
     return bp
