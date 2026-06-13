@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import importlib
+import asyncio
+import atexit
+import signal
+import threading
 
 import pymongo
 from cryptography.fernet import Fernet
 from flask import Flask
 from redis.asyncio import ConnectionPool, Redis
-from supabase import SupabaseStorageClient, create_client
+from supabase import create_client
 
 import config as cfg
 import blockchain.web3_lib as web3_library
@@ -19,13 +22,16 @@ from api.middleware.auth import (
     make_async_auth_decorator,
 )
 from api.swagger import register_swagger
-from core.domain.models import File
 from core.services.auth_service import AuthService
 from core.services.compute_node_service import ComputeNodeService
 from core.services.heartbeat_service import HeartbeatService
+from core.services.scheduler_service import Scheduler
 from core.services.storage_service import StorageService
 from core.services.supabase_service import SupabaseBlobStorage
+from core.services.task_service import ComputeTaskService
 from core.services.user_service import UserService
+from core.services.workflow_service import WorkflowService
+from infrastructure.async_executor import AsyncExecutor
 from infrastructure.database.mongo_repositories import (
     MongoComputeNodeRepository,
     MongoComputeTaskRepository,
@@ -115,9 +121,10 @@ def create_app(env: str = "dev") -> Flask:
         fernet=fernet,
         storage_repo=storage_repo,
     )
+
     heartbeat_service = HeartbeatService(redis_repo, compute_node_repo)
     compute_node_service = ComputeNodeService(
-        heartbeat_service, auth_service, compute_node_repo
+        heartbeat_service, auth_service, compute_node_repo, redis_repo
     )
     regeneration_client = RegenerationClient(file_repo)
     # file_repo.create(
@@ -151,6 +158,38 @@ def create_app(env: str = "dev") -> Flask:
         regeneration=regeneration_client.start_regeneration_job,
     )
 
+    #########################################
+    # Scheduler
+    #########################################
+    scheduler = Scheduler(
+        heartbeat_service,
+        redis_repo,
+        supabase_storage,
+        compute_workflow_repo,
+        compute_task_repo,
+    )
+
+    ##########################################
+    # Background Loop
+    ##########################################
+    bg_loop = asyncio.new_event_loop()
+    executor = AsyncExecutor(bg_loop, scheduler)
+
+    def start_background_loop():
+        asyncio.set_event_loop(bg_loop)
+        # bg_loop.run_until_complete() put here the state load function in
+        # scheduler
+        try:
+            bg_loop.run_until_complete(scheduler.run())
+        except asyncio.CancelledError:
+            pass
+
+    thread = threading.Thread(target=start_background_loop, daemon=True)
+    thread.start()
+
+    workflow_service = WorkflowService(compute_workflow_repo, executor)
+    task_service = ComputeTaskService(compute_task_repo, executor)
+    heartbeat_service.executor = executor
     # ------------------------------------------------------------------
     # Auth decorators (one per node type)
     # ------------------------------------------------------------------
@@ -172,9 +211,20 @@ def create_app(env: str = "dev") -> Flask:
         create_storage_blueprint(storage_service, storage_auth)
     )
     app.register_blueprint(
-        create_compute_node_blueprint(compute_node_service, compute_node_auth)
+        create_compute_node_blueprint(
+            compute_node_service, compute_node_auth, executor
+        )
     )
 
+    def shutdown_background_loop():
+        bg_loop.call_soon_threadsafe(scheduler.stop)
+        thread.join(timeout=5)
+        bg_loop.close()
+
+    atexit.register(shutdown_background_loop)
+    signal.signal(
+        signal.SIGTERM, lambda sig, frame: shutdown_background_loop()
+    )
     # ------------------------------------------------------------------
     # Error handlers
     # ------------------------------------------------------------------

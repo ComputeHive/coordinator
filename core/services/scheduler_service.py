@@ -3,7 +3,6 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
-from config import BaseConfig
 from core.domain.models import (
     ActiveComputeNode,
     ComputeStatusEnum,
@@ -225,7 +224,7 @@ class Scheduler:
                 payload = json.loads(raw)
                 task_id = payload["task_id"]
                 task_status = ComputeStatusEnum(payload["task_status"])
-            except Exception as exc:
+            except Exception:
                 print("Invalid Completion Message")
                 continue
             async with self._state_lock:

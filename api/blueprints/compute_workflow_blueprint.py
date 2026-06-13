@@ -22,7 +22,7 @@ def create_compute_workflow_blueprint(
             ip_addr = request.remote_addr
         try:
             workflow = WorkflowCreateRequest(**body)
-            workflow_service.create_workflow(workflow, username)
+            workflow_service.create_workflow(workflow, username, str(ip_addr))
             return jsonify({"message": "Workflow Created Successfully"}), 204
         except Exception as exc:
             if isinstance(exc, TypeError):

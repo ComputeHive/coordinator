@@ -1,13 +1,12 @@
 from pathlib import Path
-import threading
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from core.domain.enums import ComputeStatusEnum
 from core.domain.models import ComputeWorkflow, WorkflowCreateRequest
 from core.repositories import IComputeWorkflowRepository
 from core.services.encryption_service import AES
 from core.services.keygenerator_service import ECDHKeyGenerator
-from script_test import Scheduler
+from infrastructure.async_executor import AsyncExecutor
 from utils.lib import extract_zip_file
 from utils.task_processor import TaskProcessor
 from utils.workflow_processor import WorkflowProcessor
@@ -15,17 +14,10 @@ from utils.workflow_processor import WorkflowProcessor
 
 class WorkflowService:
     def __init__(
-        self, db_repo: IComputeWorkflowRepository, scheduler: Scheduler
+        self, db_repo: IComputeWorkflowRepository, executor: AsyncExecutor
     ):
         self._db_repo = db_repo
-        self._workflows: Dict[str, Tuple[str, str]] = {}
-        self._stop_event = threading.Event()
-        self._thread = threading.Thread(
-            target=self._periodic_add_workflow_to_scheduler, daemon=True
-        )
-        self._workflow_lock = threading.Lock()
-        self._scheduler = scheduler
-        self._thread.start()
+        self._executor = executor
 
     def create_workflow(
         self,
@@ -34,7 +26,6 @@ class WorkflowService:
         requester_ip_address: str,
     ):
         # TODO: Check if this workflow already exists.
-        # TODO: Edit the IP Address Point inside the Scheduler and Endpoint
         package_path = WorkflowProcessor.download_workflow_package(
             workflow.workflow_link, workflow.workflow_id
         )
@@ -59,39 +50,26 @@ class WorkflowService:
             None,
         )
 
-        self._workflows[workflow.workflow_id] = (
-            str(parent_dir),
-            requester_ip_address,
+        self._db_repo.create_workflow(compute_workflow)
+        workflow_json_path = (
+            Path(parent_dir) / f"workflow_{workflow.workflow_id}.json"
         )
 
-        self._db_repo.create_workflow(compute_workflow)
+        workflow_template = WorkflowProcessor.load_workflow_template(
+            str(workflow_json_path)
+        )
 
-    def _periodic_add_workflow_to_scheduler(self, interval=3):
-        while not self._stop_event.is_set():
-            self._stop_event.wait(interval)
-            with self._workflow_lock:
-                pending_workflows = self._workflows.copy()
-                self._workflows.clear()
-                for workflow_id, (
-                    parent_dir,
-                    requester_ip_address,
-                ) in pending_workflows.items():
-                    workflow_json_path = (
-                        Path(parent_dir) / f"workflow_{workflow_id}.json"
-                    )
+        tasks: Dict[str, Dict[str, Any]] = {}
+        for task in Path(parent_dir).rglob("task_*.json"):
+            task_payload = TaskProcessor.load_task_json(str(task))
+            task_dict = {
+                "task": task_payload,
+                "json_path": str(task),
+                "ip_address": requester_ip_address,
+            }
+            tasks[str(task_payload.id)] = task_dict
+        self._executor.run(self._async_add_workflow(workflow_template, tasks))
 
-                    workflow_template = (
-                        WorkflowProcessor.load_workflow_template(
-                            str(workflow_json_path)
-                        )
-                    )
-                    tasks: Dict[str, Dict[str, Any]] = {}
-                    for task in Path(parent_dir).rglob("task_*.json"):
-                        task_payload = TaskProcessor.load_task_json(str(task))
-                        task_dict = {
-                            "task": task_payload,
-                            "json_path": str(task),
-                            "ip_address": requester_ip_address,
-                        }
-                        tasks[str(task_payload.id)] = task_dict
-                    self._scheduler.add_workflow(workflow_template, tasks)
+    async def _async_add_workflow(self, workflow, tasks):
+        scheduler = self._executor.scheduler
+        await scheduler.add_workflow(workflow, tasks)

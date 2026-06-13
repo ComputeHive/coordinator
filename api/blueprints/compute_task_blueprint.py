@@ -23,7 +23,7 @@ def create_compute_task_blueprint(
             ip_addr = request.remote_addr
         try:
             task = TaskCreateRequest(**body)
-            task_service.create_task(task, username)
+            task_service.create_task(task, username, str(ip_addr))
             return jsonify({"message": "Task Created Successfully"}), 204
         except Exception as exc:
             if isinstance(exc, TypeError):
@@ -37,7 +37,7 @@ def create_compute_task_blueprint(
         body = request.json()
         try:
             finished_task = TaskFinishedRequest(**body)
-            await task_service.assign_task_finished(finished_task)
+            await task_service._assign_task_finished(finished_task)
             return (
                 jsonify(
                     {
