@@ -59,7 +59,7 @@ class Scheduler:
         self._lock = asyncio.Lock()
         self._shutdown_event = asyncio.Event()
 
-    async def async_load_state(self):
+    async def load_state(self):
         docs = self._task_repo.find_incomplete()
         for doc in docs:
             tid = doc["task_id"]
@@ -81,9 +81,9 @@ class Scheduler:
                 ComputeStatusEnum.EXECUTING,
             ):
                 self._tasks[tid].status = ComputeStatusEnum.RECEIVED
-                self.assigned_node_id = None
+                self._tasks[tid].assigned_node_id = None
                 self._ready_tasks.add(tid)
-            elif self._tasks[tid].status in ComputeStatusEnum.RECEIVED:
+            elif self._tasks[tid].status == ComputeStatusEnum.RECEIVED:
                 self._ready_tasks.add(tid)
 
     async def add_task(

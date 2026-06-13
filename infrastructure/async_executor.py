@@ -1,11 +1,12 @@
 import asyncio
-from typing import Any, Coroutine
+from typing import Any, Coroutine, TYPE_CHECKING
 
-from core.services.scheduler_service import Scheduler
+if TYPE_CHECKING:
+    from core.services.scheduler_service import Scheduler
 
 
 class AsyncExecutor:
-    def __init__(self, loop: asyncio.AbstractEventLoop, scheduler: Scheduler):
+    def __init__(self, loop: asyncio.AbstractEventLoop, scheduler: 'Scheduler'):
         self._loop = loop
         self.scheduler = scheduler
 

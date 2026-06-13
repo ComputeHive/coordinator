@@ -1,6 +1,6 @@
 import dataclasses
 import json
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from core.domain.models import (
     ActiveComputeNode,
@@ -8,7 +8,9 @@ from core.domain.models import (
     TaskSnapShot,
 )
 from core.repositories import IComputeNodeRepository, IRedisRepository
-from infrastructure.async_executor import AsyncExecutor
+
+if TYPE_CHECKING:
+    from infrastructure.async_executor import AsyncExecutor
 
 
 class HeartbeatService:
@@ -23,7 +25,7 @@ class HeartbeatService:
     ):
         self._cache_repo = cache_repo
         self._db_repo = db_repo
-        self.executor: Optional[AsyncExecutor] = None
+        self.executor: Optional["AsyncExecutor"] = None
 
     async def _add_alive_node(
         self, username: str, node_status: ComputeHeartbeat

@@ -36,10 +36,8 @@ class ComputeTaskService:
         task_status = ComputeStatusEnum.FINISHED
         self._db_repo.update(
             finished_task.task_id,
-            fields={
-                "task_output_link": finished_task.output_link,
-                "task_status": task_status,
-            },
+            task_output_link=finished_task.output_link,
+            task_status=task_status,
         )
         await self._executor.scheduler.on_task_finished(
             finished_task, task_status

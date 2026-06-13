@@ -33,9 +33,15 @@ def create_compute_node_blueprint(
     @bp.post("/signup")
     def signup():
         body = request.get_json()
-
+        ip_addr = ""
+        if request.headers.getlist("X-Forwarded-For"):
+            ip_addr = request.headers.getlist("X-Forwarded-For")[0]
+        else:
+            ip_addr = request.remote_addr
         try:
-            compute_node_data = ComputeNodeCreateRequest(**body)
+            compute_node_data = ComputeNodeCreateRequest(
+                ip_address=str(ip_addr), **body
+            )
             if not WALLET_RE.match(compute_node_data.wallet_address):
                 raise ValidationError("Invalid wallet address.")
             if not isinstance(

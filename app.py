@@ -180,7 +180,7 @@ def create_app(env: str = "dev") -> Flask:
         # bg_loop.run_until_complete() put here the state load function in
         # scheduler
         try:
-            bg_loop.run_until_complete(scheduler.async_load_state())
+            bg_loop.run_until_complete(scheduler.load_state())
             bg_loop.run_until_complete(scheduler.run())
         except asyncio.CancelledError:
             pass
