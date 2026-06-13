@@ -244,7 +244,7 @@ def create_app(env: str = "dev") -> Flask:
             "DELETE, GET, HEAD, OPTIONS, POST, PUT, PATCH"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Origin, Content-Type, User-Agent, Content-Range, Token, Code"
+            "Origin, Content-Type, User-Agent, Content-Range, Token, Code, Authorization, authorization "
         )
         response.headers["Access-Control-Expose-Headers"] = (
             "DAV, content-length, Allow"

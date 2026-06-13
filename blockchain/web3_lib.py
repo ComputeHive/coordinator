@@ -34,7 +34,7 @@ def _build_and_send(transaction: dict) -> bool:
 def _base_tx(extra: dict | None = None) -> dict:
     """Common transaction fields."""
     tx = {
-        "gas": 1_000_000,
+        "gas": 1,
         "gasPrice": w3.to_wei("10", "gwei"),
         "from": address,
         "nonce": w3.eth.get_transaction_count(address),

@@ -35,7 +35,10 @@ def make_auth_decorator(auth_service: AuthService, verify_fn):
     def auth_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            token = request.headers.get("Authorization").split(" ")[1]
+            auth_header = request.headers.get("Authorization")
+            if not auth_header:
+                return make_response(jsonify({"error": "Authorization header is missing."}), 401)
+            token = auth_header.split(" ")[1]
             if not token:
                 return make_response(
                     jsonify({"error": "Token is missing."}), 401
