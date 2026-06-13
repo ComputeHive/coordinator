@@ -306,11 +306,8 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             print(exc)
 
     def get_nodes_ip(self, compute_node_ids: List[str]):
-        compute_node_object_ids = list(
-            map(lambda x: _str_to_oid(x), compute_node_ids)
-        )
         document = self._col.find(
-            {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
+            {"_id": {"$in": compute_node_ids}}, {"ip_address": 1}
         )
         if not document:
             raise ValueError("No Nodes with these ips")

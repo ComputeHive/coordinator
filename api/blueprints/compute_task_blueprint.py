@@ -14,7 +14,7 @@ def create_compute_task_blueprint(
 
     @bp.post("/upload")
     @auth_required
-    async def upload_task(username: str):
+    def upload_task(username: str):
         body = request.get_json()
         ip_addr = ""
         if request.headers.getlist("X-Forwarded-For"):
@@ -33,11 +33,11 @@ def create_compute_task_blueprint(
 
     @bp.post("/finished-task")
     @auth_required
-    async def assign_task_finished(username: str):
+    def assign_task_finished(username: str):
         body = request.json()
         try:
             finished_task = TaskFinishedRequest(**body)
-            await task_service._assign_task_finished(finished_task)
+            task_service.assign_task_finished(finished_task)
             return (
                 jsonify(
                     {
