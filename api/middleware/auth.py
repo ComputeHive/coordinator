@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import inspect
 from functools import wraps
-from typing import Literal
+
 
 from flask import Flask, jsonify, request, make_response
 
@@ -39,20 +40,72 @@ def make_auth_decorator(auth_service: AuthService, verify_fn):
                 return make_response(jsonify({"error": "Authorization header is missing."}), 401)
             token = auth_header.split(" ")[1]
             if not token:
-                return make_response(jsonify({"error": "Token is missing."}), 401)
+                return make_response(
+                    jsonify({"error": "Token is missing."}), 401
+                )
             try:
                 username = auth_service.decode_token(token)
             except AuthenticationError as exc:
                 return make_response(jsonify({"error": str(exc)}), 401)
 
             if not verify_fn(username):
-                return make_response(jsonify({"error": "Account not authorised."}), 401)
+                return make_response(
+                    jsonify({"error": "Account not authorised."}), 401
+                )
 
             return f(username=username, *args, **kwargs)
 
         return decorated
 
     return auth_required
+
+
+def make_async_auth_decorator(auth_service: AuthService, verify_fn):
+
+    def async_auth_required(f):
+        @wraps(f)
+        async def decorated(*args, **kwargs):
+            auth_header = request.headers.get("Authorization")
+
+            if not auth_header:
+                return make_response(
+                    jsonify({"error": "Token is missing."}),
+                    401,
+                )
+
+            try:
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return make_response(
+                    jsonify({"error": "Invalid authorization header."}),
+                    401,
+                )
+
+            try:
+                username = auth_service.decode_token(token)
+
+            except AuthenticationError as exc:
+                return make_response(
+                    jsonify({"error": str(exc)}),
+                    401,
+                )
+
+            is_authorized = verify_fn(username)
+
+            if inspect.isawaitable(is_authorized):
+                is_authorized = await is_authorized
+
+            if not is_authorized:
+                return make_response(
+                    jsonify({"error": "Account not authorised."}),
+                    401,
+                )
+
+            return await f(username=username, *args, **kwargs)
+
+        return decorated
+
+    return async_auth_required
 
 
 def register_error_handlers(app: Flask) -> None:

@@ -1,23 +1,40 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime
 from typing import List, Optional
+from uuid import uuid4
 
 from bson.objectid import ObjectId
 from pymongo.database import Database
 
+from core.domain.enums import ComputeStatusEnum
 from core.domain.exceptions import DatabaseError
-from core.domain.models import File, StorageNode, UserNode, StorageContract
+from core.domain.models import (
+    ComputeNode,
+    ComputeNodeCreateRequest,
+    ComputeTask,
+    ComputeWorkflow,
+    File,
+    StorageContract,
+    StorageNode,
+    TaskCreateRequest,
+    UserNode,
+)
 from core.repositories import (
+    IComputeNodeRepository,
+    IComputeTaskRepository,
+    IComputeWorkflowRepository,
     IFileRepository,
     IStorageRepository,
     ITransactionRepository,
     IUserRepository,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _str_to_oid(id_str: str) -> ObjectId:
     try:
@@ -29,6 +46,7 @@ def _str_to_oid(id_str: str) -> ObjectId:
 # ---------------------------------------------------------------------------
 # User repository
 # ---------------------------------------------------------------------------
+
 
 class MongoUserRepository(IUserRepository):
     def __init__(self, db: Database) -> None:
@@ -47,24 +65,29 @@ class MongoUserRepository(IUserRepository):
         )
 
     def create(self, username: str, password_hash: str) -> None:
-        self._col.insert_one({
-            "username": username,
-            "password": password_hash,
-            "seeds": 0,
-            "pending_contract": False,
-            "pending_contract_paid": False,
-        })
+        self._col.insert_one(
+            {
+                "username": username,
+                "password": password_hash,
+                "seeds": 0,
+                "pending_contract": False,
+                "pending_contract_paid": False,
+            }
+        )
 
     def update(self, username: str, **fields) -> None:
         self._col.update_one({"username": username}, {"$set": fields})
 
     def increment_seeds(self, username: str, amount: int = 1) -> None:
-        self._col.update_one({"username": username}, {"$inc": {"seeds": amount}})
+        self._col.update_one(
+            {"username": username}, {"$inc": {"seeds": amount}}
+        )
 
 
 # ---------------------------------------------------------------------------
 # Storage repository
 # ---------------------------------------------------------------------------
+
 
 class MongoStorageRepository(IStorageRepository):
     def __init__(self, db: Database) -> None:
@@ -75,32 +98,44 @@ class MongoStorageRepository(IStorageRepository):
         return self._from_doc(doc) if doc else None
 
     def find_available(self, min_space: int) -> List[StorageNode]:
-        cursor = self._col.find({
-            "available_space": {"$gt": min_space},
-            "last_heartbeat": {"$ne": -1},
-            "is_terminated": False,
-        })
+        cursor = self._col.find(
+            {
+                "available_space": {"$gt": min_space},
+                "last_heartbeat": {"$ne": -1},
+                "is_terminated": False,
+            }
+        )
         return [self._from_doc(d) for d in cursor]
 
-    def create(self, username: str, password_hash: str, wallet_address: str, available_space: int) -> None:
-        self._col.insert_one({
-            "username": username,
-            "password": password_hash,
-            "wallet_address": wallet_address,
-            "available_space": available_space,
-            "heartbeats": 0,
-            "last_heartbeat": -1,
-            "ip_address": "155.155.155.155",
-            "port": "50000",
-            "is_terminated": False,
-            "active_contracts": [],
-        })
+    def create(
+        self,
+        username: str,
+        password_hash: str,
+        wallet_address: str,
+        available_space: int,
+    ) -> None:
+        self._col.insert_one(
+            {
+                "username": username,
+                "password": password_hash,
+                "wallet_address": wallet_address,
+                "available_space": available_space,
+                "heartbeats": 0,
+                "last_heartbeat": -1,
+                "ip_address": "155.155.155.155",
+                "port": "50000",
+                "is_terminated": False,
+                "active_contracts": [],
+            }
+        )
 
     def update(self, username: str, **fields) -> None:
         self._col.update_one({"username": username}, {"$set": fields})
 
     def push_active_contract(self, username: str, contract: dict) -> None:
-        self._col.update_one({"username": username}, {"$push": {"active_contracts": contract}})
+        self._col.update_one(
+            {"username": username}, {"$push": {"active_contracts": contract}}
+        )
 
     def pull_active_contract(self, username: str, shard_id: str) -> None:
         self._col.update_one(
@@ -138,6 +173,7 @@ class MongoStorageRepository(IStorageRepository):
 # File repository
 # ---------------------------------------------------------------------------
 
+
 class MongoFileRepository(IFileRepository):
     def __init__(self, db: Database) -> None:
         self._col = db["files"]
@@ -147,24 +183,38 @@ class MongoFileRepository(IFileRepository):
         return self._from_doc(doc) if doc else None
 
     def find_pending(self, username: str) -> Optional[File]:
-        doc = self._col.find_one({"username": username, "done_uploading": False})
+        doc = self._col.find_one(
+            {"username": username, "done_uploading": False}
+        )
         return self._from_doc(doc) if doc else None
 
     def find_active(self, username: str) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"username": username, "done_uploading": True})]
+        return [
+            self._from_doc(d)
+            for d in self._col.find(
+                {"username": username, "done_uploading": True}
+            )
+        ]
 
     def find_all_uploaded(self) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"done_uploading": True})]
+        return [
+            self._from_doc(d) for d in self._col.find({"done_uploading": True})
+        ]
 
     def find_by_contract_addresses(self, addresses: List[str]) -> List[File]:
-        return [self._from_doc(d) for d in self._col.find({"contract": {"$in": addresses}})]
+        return [
+            self._from_doc(d)
+            for d in self._col.find({"contract": {"$in": addresses}})
+        ]
 
     def create(self, file: dict) -> str:
         result = self._col.insert_one(file)
         return str(result.inserted_id)
 
     def update_segments(self, file_id: str, segments: list) -> None:
-        self._col.update_one({"_id": _str_to_oid(file_id)}, {"$set": {"segments": segments}})
+        self._col.update_one(
+            {"_id": _str_to_oid(file_id)}, {"$set": {"segments": segments}}
+        )
 
     def mark_paid(self, username: str) -> None:
         self._col.update_one(
@@ -178,7 +228,9 @@ class MongoFileRepository(IFileRepository):
             {"$set": {"done_uploading": True}},
         )
 
-    def update_shard(self, file_id: str, segment_no: int, shard_no: int, **fields) -> None:
+    def update_shard(
+        self, file_id: str, segment_no: int, shard_no: int, **fields
+    ) -> None:
         set_doc = {
             f"segments.{segment_no}.shards.{shard_no}.{k}": v
             for k, v in fields.items()
@@ -212,12 +264,160 @@ class MongoFileRepository(IFileRepository):
 # Transaction repository
 # ---------------------------------------------------------------------------
 
+
 class MongoTransactionRepository(ITransactionRepository):
     def __init__(self, db: Database) -> None:
         self._col = db["transactions"]
 
     def exists(self, transaction_hash: str) -> bool:
-        return self._col.find_one({"transaction": transaction_hash}) is not None
+        return (
+            self._col.find_one({"transaction": transaction_hash}) is not None
+        )
 
     def record(self, transaction_hash: str) -> None:
         self._col.insert_one({"transaction": transaction_hash})
+
+
+# ---------------------------------------------------------------------------
+# Compute Node repository
+# ---------------------------------------------------------------------------
+
+
+class MongoComputeNodeRepository(IComputeNodeRepository):
+    def __init__(self, db: Database):
+        self._col = db["compute_nodes"]
+
+    def create(self, compute_node_data: ComputeNodeCreateRequest) -> None:
+        compute_node_dict = {
+            "node_id": str(uuid4()),
+            "created_at": datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            **dataclasses.asdict(compute_node_data),
+        }
+        try:
+            compute_node = ComputeNode(**compute_node_dict)
+            self._col.insert_one(
+                MongoComputeNodeRepository.computenode_to_document(
+                    compute_node
+                )
+            )
+        except Exception as exc:
+            print(exc)
+
+    def get_nodes_ip(self, compute_node_ids: List[str]):
+        compute_node_object_ids = list(
+            map(lambda x: _str_to_oid(x), compute_node_ids)
+        )
+        document = self._col.find(
+            {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
+        )
+        if not document:
+            raise ValueError("No Nodes with these ips")
+        return list(map(lambda x: x["ip_address"], list(document)))
+
+    def find_by_username(self, username) -> Optional[ComputeNode]:
+        document = self._col.find_one({"username": username})
+        return (
+            MongoComputeNodeRepository.document_to_compute_node(document)
+            if document
+            else None
+        )
+
+    def get_node_id_by_username(self, username) -> Optional[str]:
+        document = self._col.find_one({"username": username}, {"_id": 1})
+        if not document:
+            raise ValueError("No node with this username")
+        return document["_id"]
+
+    # def update(self) -> None: ...
+    @staticmethod
+    def computenode_to_document(node: ComputeNode) -> dict:
+        document = dataclasses.asdict(node)
+        document["_id"] = document.pop("node_id")
+        return document
+
+    @staticmethod
+    def document_to_compute_node(document: dict) -> ComputeNode:
+        document["node_id"] = document.pop("_id")
+        return ComputeNode(**document)
+
+
+class MongoComputeTaskRepository(IComputeTaskRepository):
+    def __init__(self, db: Database):
+        self._col = db["compute_tasks"]
+
+    def create(self, task: TaskCreateRequest, requester_id: str) -> None:
+        compute_task_dict = {
+            **dataclasses.asdict(task),
+            "task_status": ComputeStatusEnum.RECEIVED,
+            "requester_id": requester_id,
+            "task_id": str(uuid4()),
+            "task_contract": None,
+            "assigned_node_id": None,
+            "task_output_link": None,
+        }
+        compute_task = ComputeTask(**compute_task_dict)
+        self._col.insert_one(
+            MongoComputeTaskRepository.computetask_to_doc(compute_task)
+        )
+
+    def update(self, task_id: str, **fields) -> None:
+        self._col.update_one({"_id": _str_to_oid(task_id)}, {"$set": fields})
+
+    def cancel(self, task_id: str) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(task_id)},
+            {"$set": {"task_type": ComputeStatusEnum.CANCELLED}},
+        )
+
+    @staticmethod
+    def doc_to_computetask(document: dict) -> ComputeTask:
+        document["task_id"] = document.pop("_id")
+        return ComputeTask(**document)
+
+    @staticmethod
+    def computetask_to_doc(compute_task: ComputeTask) -> dict:
+        document = dataclasses.asdict(compute_task)
+        document["_id"] = document.pop("task_id")
+        return document
+
+
+class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
+    def __init__(self, db: Database):
+        self._col = db["compute_workflows"]
+
+    def create(self, tasks_id: List[str], requester_id: str) -> None:
+        workflow_dict = {
+            "requester_id": requester_id,
+            "workflow_id": str(uuid4()),
+            "tasks_id": tasks_id,
+            "workflow_status": ComputeStatusEnum.RECEIVED,
+            "workflow_contract": None,
+        }
+        workflow = ComputeWorkflow(**workflow_dict)
+        self._col.insert_one(
+            MongoComputeWorkflowRepository.computeworkflow_to_doc(workflow)
+        )
+
+    def update(self, workflow_id: str, **fields) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(workflow_id)}, {"$set": fields}
+        )
+
+    def cancel(self, workflow_id: str) -> None:
+        self._col.update_one(
+            {"_id": _str_to_oid(workflow_id)},
+            {"$set": {"workflow_status": ComputeStatusEnum.CANCELLED}},
+        )
+
+    @staticmethod
+    def doc_to_computeworkflow(document: dict) -> ComputeWorkflow:
+        document["workflow_id"] = document.pop("_id")
+        return ComputeWorkflow(**document)
+
+    @staticmethod
+    def computeworkflow_to_doc(compute_workflow: ComputeWorkflow) -> dict:
+        document = dataclasses.asdict(compute_workflow)
+        document["_id"] = document.pop("workflow_id")
+        return document

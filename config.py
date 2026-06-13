@@ -1,6 +1,9 @@
 import os
+
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 class BaseConfig:
     SERVER_PATH = "http://127.0.0.1:5000/"
@@ -23,6 +26,7 @@ class DevelopmentConfig(BaseConfig):
     DEBUG = True
     DATABASE_URI: str = os.environ["MONGODB_DEV_URI"]
     DATABASE_NAME: str = os.environ["MONGODB_DEV_NAME"]
+    REDIS_DATABASE_URI: str = os.environ["REDIS_DEV_URL"]
 
 
 class ProductionConfig(BaseConfig):
