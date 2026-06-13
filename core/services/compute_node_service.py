@@ -1,12 +1,13 @@
 import dataclasses
+import json
+from typing import List, Optional
 
 from core.domain.exceptions import AuthenticationError, ConflictError
 from core.domain.models import ComputeNodeCreateRequest
+from core.repositories import IComputeNodeRepository, IRedisRepository
 from core.services.auth_service import AuthService
 from core.services.heartbeat_service import HeartbeatService
-from infrastructure.database.mongo_repositories import (
-    MongoComputeNodeRepository,
-)
+from infrastructure.async_executor import AsyncExecutor
 
 
 class ComputeNodeService:
@@ -14,11 +15,15 @@ class ComputeNodeService:
         self,
         heartbeat_service: HeartbeatService,
         auth_service: AuthService,
-        db_repo: MongoComputeNodeRepository,
+        db_repo: IComputeNodeRepository,
+        redis_repo: IRedisRepository,
+        executor: Optional[AsyncExecutor] = None,
     ):
         self.heartbeat_service = heartbeat_service
         self._auth = auth_service
         self._db_repo = db_repo
+        self._redis_repo = redis_repo
+        self._executor = executor
 
     def create_compute_node(self, compute_node: ComputeNodeCreateRequest):
         compute_node_dict = dataclasses.asdict(compute_node)
@@ -42,3 +47,17 @@ class ComputeNodeService:
 
     def verify_exists(self, username: str) -> bool:
         return self._db_repo.find_by_username(username) is not None
+
+    def get_assigned_tasks(self, username: str, num_tasks: int = 3):
+        return self._executor.run(
+            self._get_assigned_tasks(username, num_tasks)
+        )
+
+    async def _get_assigned_tasks(
+        self, username: str, num_tasks: int = 3
+    ) -> List[dict]:
+        compute_node_id = self._db_repo.get_node_id_by_username(username)
+        queue_key = f"node:{compute_node_id}:tasks"
+        tasks = await self._redis_repo.queue_pop_k(queue_key, num_tasks) or []
+        tasks = list(map(lambda x: json.loads(x), tasks))
+        return tasks

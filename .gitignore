@@ -137,3 +137,5 @@ decent/
 output
 .vscode/
 script_test.py
+prompt.txt
+*.json

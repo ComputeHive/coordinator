@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from redis.asyncio import Redis
 
@@ -56,6 +56,23 @@ class RedisRepository(IRedisRepository):
             return None
         _, raw = result
         return raw
+
+    async def queue_pop_k(
+        self, key: str, num_values=5, timeout: int = 10
+    ) -> Optional[List[str | bytes]]:
+        if num_values <= 0:
+            return []
+        result = await self._client.blmpop(
+            timeout,
+            1,
+            key,
+            direction="LEFT",
+            count=num_values,
+        )
+        if result is None:
+            return None
+        _, values = result
+        return cast(List[str | bytes], values)
 
     async def queue_length(self, key: str) -> int:
         return await self._client.llen(key)

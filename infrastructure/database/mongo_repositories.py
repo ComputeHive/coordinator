@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from bson.objectid import ObjectId
@@ -278,9 +278,9 @@ class MongoTransactionRepository(ITransactionRepository):
         self._col.insert_one({"transaction": transaction_hash})
 
 
-# ---------------------------------------------------------------------------
+#####################################
 # Compute Node repository
-# ---------------------------------------------------------------------------
+#####################################
 
 
 class MongoComputeNodeRepository(IComputeNodeRepository):
@@ -306,11 +306,8 @@ class MongoComputeNodeRepository(IComputeNodeRepository):
             print(exc)
 
     def get_nodes_ip(self, compute_node_ids: List[str]):
-        compute_node_object_ids = list(
-            map(lambda x: _str_to_oid(x), compute_node_ids)
-        )
         document = self._col.find(
-            {"_id": {"$in": compute_node_object_ids}}, {"ip_address": 1}
+            {"_id": {"$in": compute_node_ids}}, {"ip_address": 1}
         )
         if not document:
             raise ValueError("No Nodes with these ips")
@@ -347,12 +344,17 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
     def __init__(self, db: Database):
         self._col = db["compute_tasks"]
 
-    def create(self, task: TaskCreateRequest, requester_id: str) -> None:
+    def create(
+        self,
+        task: TaskCreateRequest,
+        requester_username: str,
+        requester_ip_address: str,
+    ) -> None:
         compute_task_dict = {
             **dataclasses.asdict(task),
             "task_status": ComputeStatusEnum.RECEIVED,
-            "requester_id": requester_id,
-            "task_id": str(uuid4()),
+            "requester_username": requester_username,
+            "requester_ip_address": requester_ip_address,
             "task_contract": None,
             "assigned_node_id": None,
             "task_output_link": None,
@@ -361,6 +363,15 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
         self._col.insert_one(
             MongoComputeTaskRepository.computetask_to_doc(compute_task)
         )
+
+    def find_incomplete(self) -> List[Dict]:
+        terminal = [
+            ComputeStatusEnum.FINISHED,
+            ComputeStatusEnum.FAILED,
+            ComputeStatusEnum.CANCELLED,
+        ]
+        docs = self._col.find({"task_status": {"$nin": terminal}})
+        return [{**d, "task_id": str(d.pop("_id"))} for d in docs]
 
     def update(self, task_id: str, **fields) -> None:
         self._col.update_one({"_id": _str_to_oid(task_id)}, {"$set": fields})
@@ -387,17 +398,11 @@ class MongoComputeWorkflowRepository(IComputeWorkflowRepository):
     def __init__(self, db: Database):
         self._col = db["compute_workflows"]
 
-    def create(self, tasks_id: List[str], requester_id: str) -> None:
-        workflow_dict = {
-            "requester_id": requester_id,
-            "workflow_id": str(uuid4()),
-            "tasks_id": tasks_id,
-            "workflow_status": ComputeStatusEnum.RECEIVED,
-            "workflow_contract": None,
-        }
-        workflow = ComputeWorkflow(**workflow_dict)
+    def create_workflow(self, compute_workflow: ComputeWorkflow) -> None:
         self._col.insert_one(
-            MongoComputeWorkflowRepository.computeworkflow_to_doc(workflow)
+            MongoComputeWorkflowRepository.computeworkflow_to_doc(
+                compute_workflow
+            )
         )
 
     def update(self, workflow_id: str, **fields) -> None:

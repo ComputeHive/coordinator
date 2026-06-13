@@ -19,6 +19,10 @@ class BaseConfig:
     # Read as string; app.py converts to bytes for Fernet
     SECRET_KEY: str = os.environ["SECRET_KEY"]
     SHARD_ID_KEY: str = os.environ["SHARD_ID_KEY"]
+    KEYSTORE_DIR: str = os.environ["KEYSTORE_DIR"]
+    SUPABASE_PROJECT: str = os.environ["SUPABASE_URL"]
+    SUPABASE_KEY: str = os.environ["SUPABASE_KEY"]
+    HKDF_INFO: str = os.environ["HKDF_INFO"]
 
 
 class DevelopmentConfig(BaseConfig):

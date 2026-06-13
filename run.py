@@ -11,7 +11,12 @@ from app import create_app
 
 
 @click.command()
-@click.option("--env", default="dev", show_default=True, help="Runtime environment (dev|prod)")
+@click.option(
+    "--env",
+    default="dev",
+    show_default=True,
+    help="Runtime environment (dev|prod)",
+)
 def cli(env: str) -> None:
     app = create_app(env)
     app.run(host="0.0.0.0", port=5000)

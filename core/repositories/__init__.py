@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.domain.models import (
     ComputeNode,
     ComputeNodeCreateRequest,
+    ComputeWorkflow,
     File,
     StorageNode,
     TaskCreateRequest,
@@ -128,7 +129,14 @@ class IComputeNodeRepository(abc.ABC):
 
 class IComputeTaskRepository(abc.ABC):
     @abc.abstractmethod
-    def create(self, task: TaskCreateRequest, requester_id: str) -> None: ...
+    def create(
+        self,
+        task: TaskCreateRequest,
+        requester_username: str,
+        requester_ip_address: str,
+    ) -> None: ...
+    @abc.abstractmethod
+    def find_incomplete(self) -> List[Dict]: ...
     @abc.abstractmethod
     def update(self, task_id: str, **fields) -> None: ...
 
@@ -139,7 +147,7 @@ class IComputeTaskRepository(abc.ABC):
 class IComputeWorkflowRepository(abc.ABC):
 
     @abc.abstractmethod
-    def create(self, tasks_id: List[str], requester_id: str) -> None: ...
+    def create_workflow(self, compute_workflow: ComputeWorkflow) -> None: ...
 
     @abc.abstractmethod
     def update(self, workflow_id: str, **fields) -> None: ...
@@ -165,6 +173,10 @@ class IRedisRepository(abc.ABC):
     async def queue_pop(
         self, key: str, timeout: int = 10
     ) -> Optional[str | bytes]: ...
+
+    async def queue_pop_k(
+        self, key: str, num_values=5, timeout: int = 10
+    ) -> Optional[List[str | bytes]]: ...
 
     async def queue_length(self, key: str) -> int: ...
 

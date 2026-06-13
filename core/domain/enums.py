@@ -21,3 +21,13 @@ class ComputeStatusEnum(StrEnum):
     EXECUTING = auto()
     FINISHED = auto()
     FAILED = auto()
+
+
+class InputSourceTypeEnum(StrEnum):
+    DEFAULT = auto()
+    FUNCTION_OUTPUT = auto()
+
+
+class WorkflowTypeEnum(StrEnum):
+    NORMAL = auto()
+    MAP_REDUCE = auto()
