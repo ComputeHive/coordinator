@@ -135,7 +135,8 @@ class IComputeTaskRepository(abc.ABC):
         requester_username: str,
         requester_ip_address: str,
     ) -> None: ...
-
+    @abc.abstractmethod
+    def find_incomplete(self) -> List[Dict]: ...
     @abc.abstractmethod
     def update(self, task_id: str, **fields) -> None: ...
 

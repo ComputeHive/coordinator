@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from bson.objectid import ObjectId
@@ -366,6 +366,15 @@ class MongoComputeTaskRepository(IComputeTaskRepository):
         self._col.insert_one(
             MongoComputeTaskRepository.computetask_to_doc(compute_task)
         )
+
+    def find_incomplete(self) -> List[Dict]:
+        terminal = [
+            ComputeStatusEnum.FINISHED,
+            ComputeStatusEnum.FAILED,
+            ComputeStatusEnum.CANCELLED,
+        ]
+        docs = self._col.find({"task_status": {"$nin": terminal}})
+        return [{**d, "task_id": str(d.pop("_id"))} for d in docs]
 
     def update(self, task_id: str, **fields) -> None:
         self._col.update_one({"_id": _str_to_oid(task_id)}, {"$set": fields})

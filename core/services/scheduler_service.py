@@ -10,6 +10,7 @@ from core.domain.models import (
     TaskCreateRequest,
     TaskFinishedRequest,
     TaskPayload,
+    TaskState,
     WorkflowTemplate,
 )
 from core.repositories import (
@@ -23,8 +24,6 @@ from utils.lib import NodeScoreCalculator
 from utils.task_processor import TaskProcessor
 from core.domain.enums import TaskTypeEnum
 
-READY_QUEUE = "scheduler:ready_tasks"
-COMPLETED_QUEUE = "scheduler:completed_tasks"
 NODE_TASK_QUEUE_PREFIX = "node:{node_id}:tasks"
 
 EXT = {
@@ -38,7 +37,6 @@ EXT = {
 
 class Scheduler:
     REFRESH_INTERVAL = 15
-    FAILURE_CHECK_INTERVAL = 30
 
     def __init__(
         self,
@@ -54,19 +52,39 @@ class Scheduler:
         self._workflow_repo = workflow_db_repo
         self._task_repo = task_db_repo
 
-        self._tasks: Dict[str, Dict[str, Any]] = {}
-        self._parents: Dict[str, List[str]] = defaultdict(list)
+        self._tasks: Dict[str, TaskState] = {}
         self._children: Dict[str, List[str]] = defaultdict(list)
-        self._status: Dict[str, ComputeStatusEnum] = {}
-        self._assigned_node: Dict[str, str] = {}
-        self._pending_deps: Dict[str, Set[str]] = defaultdict(set)
+        self._ready_tasks: Set[str] = set()
         self._active_nodes: Dict[str, ActiveComputeNode] = {}
-        self._nodes_lock = asyncio.Lock()
-        self._state_lock = asyncio.Lock()
+        self._lock = asyncio.Lock()
         self._shutdown_event = asyncio.Event()
 
     async def async_load_state(self):
-        pass
+        docs = self._task_repo.find_incomplete()
+        for doc in docs:
+            tid = doc["task_id"]
+            task_payload = TaskProcessor.load_task_json(doc["json_path"])
+            pending = set(doc.get("pending_deps", []))
+            state = TaskState(
+                payload=task_payload,
+                ip_address=doc["requester_ip_address"],
+                json_path=Path(doc["json_path"]),
+                status=ComputeStatusEnum(doc["task_status"]),
+                assigned_node_id=doc.get("assigned_node_id"),
+                pending_deps=pending,
+            )
+            self._tasks[tid] = state
+            for parent_id in pending:
+                self._children[parent_id].append(tid)
+            if self._tasks[tid].status in (
+                ComputeStatusEnum.SCHEDULED,
+                ComputeStatusEnum.EXECUTING,
+            ):
+                self._tasks[tid].status = ComputeStatusEnum.RECEIVED
+                self.assigned_node_id = None
+                self._ready_tasks.add(tid)
+            elif self._tasks[tid].status in ComputeStatusEnum.RECEIVED:
+                self._ready_tasks.add(tid)
 
     async def add_task(
         self,
@@ -76,61 +94,56 @@ class Scheduler:
         parent_ids: Optional[List[str]] = None,
     ):
         tid = str(task.id)
-        async with self._state_lock:
-            self._tasks[tid] = {
-                "task": task,
-                "ip_address": requester_ip_address,
-                "json_path": task_json_path,
-            }
-            self._parents[tid] = parent_ids or []
-            self._status[tid] = ComputeStatusEnum.RECEIVED
+        async with self._lock:
+            self._tasks[tid] = TaskState(
+                payload=task,
+                ip_address=requester_ip_address,
+                json_path=task_json_path,
+                status=ComputeStatusEnum.RECEIVED,
+                assigned_node_id=None,
+                pending_deps=set(parent_ids or []),
+            )
+            self._persist_task(tid)
             if not parent_ids:
-                self._pending_deps[tid] = set()
-                await self._push_ready(tid)
+                self._ready_tasks.add(tid)
+                asyncio.create_task(self._schedule_task(tid))
             else:
                 for p in parent_ids:
                     self._children[p].append(tid)
-                self._pending_deps[tid] = set(parent_ids)
 
     async def add_workflow(
         self,
         workflow: WorkflowTemplate,
         tasks_meta: Dict[str, Dict[str, Any]],
     ):
-        async with self._state_lock:
-            for task_relation in workflow.tasks:
-                tid = task_relation.task_id
-                if tid not in tasks_meta:
-                    raise ValueError(f"Missing metadata for task {tid}")
-                await self.add_task(
-                    tasks_meta[tid]["task"],
-                    tasks_meta[tid]["ip_address"],
-                    tasks_meta[tid]["json_path"],
-                    task_relation.parents,
-                )
+        for task_relation in workflow.tasks:
+            tid = task_relation.task_id
+            if tid not in tasks_meta:
+                raise ValueError(f"Missing metadata for task {tid}")
+            await self.add_task(
+                tasks_meta[tid]["task"],
+                tasks_meta[tid]["ip_address"],
+                tasks_meta[tid]["json_path"],
+                task_relation.parents,
+            )
 
-    async def add_to_completed_queue(
+    async def on_task_finished(
         self,
         finished_task: TaskFinishedRequest,
         task_status: ComputeStatusEnum,
     ):
-        payload = {
-            "task_id": finished_task.task_id,
-            "task_status": task_status,
-            "task_output_link": finished_task.output_link,
-        }
-
-        await self._redis.queue_push(COMPLETED_QUEUE, json.dumps(payload))
+        await self._process_completion(
+            finished_task.task_id, task_status, finished_task.output_link
+        )
 
     async def run(self):
         nodes = await self._heartbeat.active_nodes
-        async with self._nodes_lock:
+        async with self._lock:
             self._active_nodes = {n.node_id: n for n in nodes}
+        for tid in list(self._ready_tasks):
+            asyncio.create_task(self._schedule_task(tid))
         tasks = [
-            asyncio.create_task(self._dispatch_ready()),
-            asyncio.create_task(self._handle_completions()),
             asyncio.create_task(self._periodic_node_refresh()),
-            asyncio.create_task(self._monitor_node_failures()),
         ]
         try:
             await self._shutdown_event.wait()
@@ -142,24 +155,12 @@ class Scheduler:
     async def stop(self):
         self._shutdown_event.set()
 
-    async def _dispatch_ready(self):
-        while not self._shutdown_event.is_set():
-            try:
-                raw = self._redis.queue_pop(READY_QUEUE, timeout=1)
-                if raw is None:
-                    continue
-                task_id = raw.decode() if isinstance(raw, bytes) else str(raw)
-                await self._schedule_task(task_id)
-            except Exception:
-                print("Bad ready queue message")
-
-    async def _choose_best_node(self, task: Dict[str, Any]) -> Optional[str]:
-        async with self._nodes_lock:
-            nodes: List[ActiveComputeNode] = list(self._active_nodes.values())
+    def _choose_best_node(self, task: TaskState) -> Optional[str]:
+        nodes: List[ActiveComputeNode] = list(self._active_nodes.values())
         best_node_id, best_score = None, float("-inf")
         for node in nodes:
             score = NodeScoreCalculator.node_score(
-                task["task"], node, task["ip_address"]
+                task.payload, node, task.ip_address
             )
             if score > best_score:
                 best_score = score
@@ -167,105 +168,83 @@ class Scheduler:
         return best_node_id
 
     async def _schedule_task(self, task_id: str):
-        async with self._state_lock:
-            task = self._tasks[task_id]
-            if not task:
-                print("Unknown task %s in ready queue", task_id)
-                return
-            current_status = self._status[task_id]
-            if current_status in (
+        async with self._lock:
+            task = self._tasks.get(task_id)
+            if not task or task.status in (
                 ComputeStatusEnum.SCHEDULED,
                 ComputeStatusEnum.EXECUTING,
                 ComputeStatusEnum.FINISHED,
             ):
-                print("Task %s already in progress, skipping", task_id)
                 return
-            best_node_id = await self._choose_best_node(task)
+
+            best_node_id = self._choose_best_node(task)
             if best_node_id is None:
-                print("No Suitable node for task %s, re-queuing", task_id)
-                # TODO: No Need to Re Add
-                await self._push_ready(task_id)
+                print(
+                    "No Suitable node for task %s, retrying next node refresh",
+                    task_id,
+                )
                 return
-            self._assigned_node[task_id] = best_node_id
-            self._status[task_id] = ComputeStatusEnum.SCHEDULED
-            # TODO: Remove from Ready Queue
-            # TODO: Remove Redis Queues (unnecessary complexity)
+            task.assigned_node_id = best_node_id
+            task.status = ComputeStatusEnum.SCHEDULED
+            self._ready_tasks.discard(task_id)
+            self._persist_task(task_id)
         try:
             encrypted_package_link = TaskProcessor.prepare_task_package(
                 self._bucket_service,
-                task["task"],
-                task["json_path"],
+                task.payload,
+                task.json_path,
                 best_node_id,
             )
         except Exception:
             print("Failed to prepare package for task %s", task_id)
-            async with self._state_lock:
+            async with self._lock:
                 # Rollback assignement
-                self._assigned_node.pop(task_id)
-                self._status[task_id] = ComputeStatusEnum.RECEIVED
-                # TODO: Already in Ready Queue
-                await self._push_ready(task_id)
+                task.assigned_node_id = None
+                task.status = ComputeStatusEnum.RECEIVED
+                self._ready_tasks.add(task_id)
+                self._persist_task(task_id)
+                asyncio.create_task(self._schedule_task(task_id))
             return
         node_queue = NODE_TASK_QUEUE_PREFIX.format(node_id=best_node_id)
         payload = TaskCreateRequest(
             task_id=task_id,
             task_link=encrypted_package_link,
-            task_type=task["task"].type,
+            task_type=task.payload.type,
         )
         await self._redis.queue_push(node_queue, json.dumps(payload))
         print("Task %s assigned to node %s", task_id, best_node_id)
 
-    async def _handle_completions(self):
-        while not self._shutdown_event.is_set():
-            try:
-                raw = await self._redis.queue_pop(COMPLETED_QUEUE, timeout=1)
-                if not raw:
-                    continue
-                payload = json.loads(raw)
-                task_id = payload["task_id"]
-                task_status = ComputeStatusEnum(payload["task_status"])
-            except Exception:
-                print("Invalid Completion Message")
-                continue
-            async with self._state_lock:
-                task = self._tasks[task_id]
-                if not task:
-                    print("Unknown completed task %s", task_id)
-                    continue
-                self._status[task_id] = task_status
-                self._assigned_node.pop(task_id, None)
-                if task_status == ComputeStatusEnum.FINISHED:
-                    task_type = self._tasks[task_id]["task"].type
-                    children = self._children.get(task_id, [])
-                    for child_id in children:
-                        child_deps = self._pending_deps[child_id]
-                        if child_deps and task_id in child_deps:
-                            input_files = [
-                                InputFileMetaData(
-                                    file_name=f"out_{payload["task_id"]}"
-                                    f"{EXT[task_type]}",
-                                    link=payload["task_output_link"],
-                                )
-                            ]
-                            child_task = self._tasks[child_id]["task"]
-                            try:
-                                self._tasks[child_id]["task"] = (
-                                    TaskProcessor.update_task_payload(
-                                        child_task, input_files
-                                    )
-                                )
-                            except Exception as e:
-                                print("Failed to update child payload: %s", e)
-                            child_deps.discard(task_id)
-                            if not child_deps:
-                                if self._status[child_id] not in (
-                                    ComputeStatusEnum.SCHEDULED,
-                                    ComputeStatusEnum.EXECUTING,
-                                ):
-                                    await self._push_ready(child_id)
-                        else:
-                            # TODO: Supposed to be ignored
-                            pass
+    async def _process_completion(
+        self,
+        task_id: str,
+        task_status: ComputeStatusEnum,
+        output_link: Optional[str],
+    ):
+        async with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return
+            task.status = task_status
+            task.assigned_node_id = None
+            if task_status == ComputeStatusEnum.FINISHED:
+                task_type = task.payload.type
+                for child_id in self._children.get(task_id, []):
+                    child = self._tasks.get(child_id)
+                    if child and task_id in child.pending_deps:
+                        input_files = [
+                            InputFileMetaData(
+                                file_name=f"out_{task_id}{EXT[task_type]}",
+                                link=output_link,
+                            )
+                        ]
+                        child.payload = TaskProcessor.update_task_payload(
+                            child.payload, input_files
+                        )
+                        child.pending_deps.discard(task_id)
+                        self._persist_task(child_id)
+                        if not child.pending_deps:
+                            self._ready_tasks.add(child_id)
+                            asyncio.create_task(self._schedule_task(child_id))
 
     async def _periodic_node_refresh(self):
         while not self._shutdown_event.is_set():
@@ -273,42 +252,38 @@ class Scheduler:
                 nodes = await asyncio.wait_for(
                     self._heartbeat.active_nodes, timeout=self.REFRESH_INTERVAL
                 )
-                async with self._nodes_lock:
+                async with self._lock:
                     self._active_nodes = {n.node_id: n for n in nodes}
+                    active_ids = set(self._active_nodes.keys())
+                    for tid, task in self._tasks.items():
+                        if (
+                            task.assigned_node_id
+                            and task.assigned_node_id not in active_ids
+                            and task.status
+                            in (
+                                ComputeStatusEnum.SCHEDULED,
+                                ComputeStatusEnum.EXECUTING,
+                            )
+                        ):
+                            task.assigned_node_id = None
+                            task.status = ComputeStatusEnum.RECEIVED
+                            self._ready_tasks.add(tid)
+                            self._persist_task(tid)
             except asyncio.TimeoutError:
                 pass
             except Exception:
                 print("Failed to refresh active nodes")
+            async with self._lock:
+                for tid in list(self._ready_tasks):
+                    asyncio.create_task(self._schedule_task(tid))
             await asyncio.sleep(self.REFRESH_INTERVAL)
 
-    async def _monitor_node_failures(self):
-        while not self._shutdown_event.is_set():
-            await asyncio.sleep(self.FAILURE_CHECK_INTERVAL)
-            try:
-                active = await self._heartbeat.active_nodes
-                active_ids = {n.node_id for n in active}
-            except Exception:
-                print("Node Failure check failed, skipping cycle")
-                continue
-            async with self._state_lock:
-                for task_id, node_id in list(self._assigned_node.items()):
-                    if node_id not in active_ids:
-                        status = self._status[task_id]
-                        if status in (
-                            ComputeStatusEnum.SCHEDULED,
-                            ComputeStatusEnum.EXECUTING,
-                        ):
-                            self._assigned_node.pop(task_id)
-                            self._status[task_id] = ComputeStatusEnum.RECEIVED
-                            await self._push_ready(task_id)
-                            print(
-                                "Node %s dead, rescheduling task %s",
-                                node_id,
-                                task_id,
-                            )
-
-    async def _push_ready(self, task_id: str):
-        try:
-            await self._redis.queue_push(READY_QUEUE, task_id)
-        except Exception:
-            print("Failed to push task %s to ready queue", task_id)
+    def _persist_task(self, task_id: str):
+        task = self._tasks[task_id]
+        self._task_repo.update(
+            task_id,
+            task_status=task.status,
+            assigned_node_id=task.assigned_node_id,
+            pending_deps=list(task.pending_deps),
+            json_path=str(task.json_path),
+        )

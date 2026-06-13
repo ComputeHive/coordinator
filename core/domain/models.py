@@ -1,8 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from uuid import UUID
 
 import datetime
+
+from pathlib import Path
 
 from core.domain.enums import (
     ComputeStatusEnum,
@@ -281,3 +283,18 @@ class WorkflowTemplate:
     workflow_id: str
     workflow_type: WorkflowTypeEnum
     tasks: List[TaskParents]
+
+
+#############################
+# Scheduler
+#############################
+
+
+@dataclass
+class TaskState:
+    payload: TaskPayload
+    ip_address: str
+    json_path: Path
+    status: ComputeStatusEnum
+    assigned_node_id: Optional[str] = None
+    pending_deps: Set[str] = field(default_factory=set)

@@ -41,7 +41,7 @@ class ComputeTaskService:
                 "task_status": task_status,
             },
         )
-        await self._executor.scheduler.add_to_completed_queue(
+        await self._executor.scheduler.on_task_finished(
             finished_task, task_status
         )
 
