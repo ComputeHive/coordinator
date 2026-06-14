@@ -207,7 +207,9 @@ def create_app(env: str = "dev") -> Flask:
     # Blueprints
     # ------------------------------------------------------------------
 
-    app.register_blueprint(create_user_blueprint(user_service, user_auth))
+    app.register_blueprint(
+        create_user_blueprint(user_service, supabase_storage, user_auth)
+    )
     app.register_blueprint(
         create_storage_blueprint(storage_service, storage_auth)
     )
