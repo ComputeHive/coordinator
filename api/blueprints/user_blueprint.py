@@ -5,10 +5,15 @@ import os
 
 from flask import Blueprint, jsonify, make_response, request
 
+from core.services.supabase_service import BUCKET_NAME, SupabaseBlobStorage
 from core.services.user_service import UserService
 
 
-def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint:
+def create_user_blueprint(
+    user_service: UserService,
+    supabase_service: SupabaseBlobStorage,
+    auth_required,
+) -> Blueprint:
     bp = Blueprint("user", __name__, url_prefix="/users")
 
     # ------------------------------------------------------------------
@@ -93,7 +98,9 @@ def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint
     def shard_failed_uploading(username: str):
         body = request.json or {}
         shard_id = body.get("shard_id")
-        new_connection = user_service.shard_failed_uploading(username, shard_id)
+        new_connection = user_service.shard_failed_uploading(
+            username, shard_id
+        )
         return jsonify(new_connection), 200
 
     # ------------------------------------------------------------------
@@ -112,7 +119,9 @@ def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint
         download_count = int(request.args["download_count"])
         duration_in_months = int(request.args["duration_in_months"])
         file_size = int(request.args["file_size"])
-        price = user_service.get_price(download_count, duration_in_months, file_size)
+        price = user_service.get_price(
+            download_count, duration_in_months, file_size
+        )
         return jsonify({"price": price}), 200
 
     # ------------------------------------------------------------------
@@ -138,5 +147,22 @@ def create_user_blueprint(user_service: UserService, auth_required) -> Blueprint
         tx_hash = body.get("transactionHash")
         user_service.verify_transaction(username, tx_hash)
         return make_response("", 204)
+
+    @bp.post("/generate-links")
+    @auth_required
+    def generate_signed_links(username: str):
+        body = request.get_json()
+        try:
+            names = body.get("files", [])
+
+            object_links = supabase_service.generate_presigned_upload_url(
+                BUCKET_NAME, names
+            )
+            print(object_links)
+            return jsonify({"links": object_links})
+        except Exception as exc:
+            if isinstance(exc, TypeError):
+                return jsonify({"message": "Bad Request"}), 400
+            return jsonify({"message": str(exc)}), 400
 
     return bp

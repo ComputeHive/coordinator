@@ -298,3 +298,8 @@ class TaskState:
     status: ComputeStatusEnum
     assigned_node_id: Optional[str] = None
     pending_deps: Set[str] = field(default_factory=set)
+
+
+#####################################
+# Generic
+###################################

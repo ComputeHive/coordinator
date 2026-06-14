@@ -1,6 +1,7 @@
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from core.services.Iblob_service import IBlobStorage
 from supabase import Client
+from storage3.types import SignedUploadURL
 
 BUCKET_NAME = "CERA_COORDINATOR"
 
@@ -47,3 +48,16 @@ class SupabaseBlobStorage(IBlobStorage):
         if isinstance(response, dict):
             return response.get("signedUrl", response.get("signedURL", ""))
         return str(response)
+
+    def generate_presigned_upload_url(
+        self,
+        bucket_name: str,
+        object_names: List[str],
+    ) -> List[SignedUploadURL]:
+        results: List[SignedUploadURL] = []
+        for name in object_names:
+            response = self.client.storage.from_(
+                bucket_name
+            ).create_signed_upload_url(path=name)
+            results.append(response)
+        return results
